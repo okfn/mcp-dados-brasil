@@ -1,27 +1,28 @@
-engine: row_list
+engine: top_row
 
 # More info on this repo at datasets/operadoras_saude/README.md
 # Sample queries this dataset should be able to answer (in portuguese):
-# - Liste as operadoras de saúde na cidade do Rio de Janeiro
-# - Quais cooperativas médicas estão registradas em Minas Gerais?
-# - Quais operadoras de odontologia de grupo existem no Brasil?
-# - Quais são as administradoras de benefícios ativas no Paraná?
-# - Liste as operadoras de medicina de grupo em Curitiba
+# - Qual é a data de registro mais recente de operadoras de saúde no Brasil?
+# - Qual é a data de registro mais antiga de operadoras de saúde no Brasil?
+# - Qual é a data de registro mais recente de operadoras de saúde no estado de São Paulo?
+# - Qual é a data de registro mais antiga de operadoras de saúde na modalidade Medicina de Grupo?
+# - Qual é a data de registro mais recente de operadoras de saúde na cidade do Rio de Janeiro?
 
 dataset:
-  name: lista-operadoras-saude
-  description: "Lista de operadoras de planos de saúde ativas no Brasil (ANS)"
+  name: newest-oldest-registro-ans
+  description: "Registro más reciente y más antiguo de operadoras de salud en Brasil"
   source:
     csv: https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/Relatorio_cadop.csv
     url: https://dados.gov.br/dados/conjuntos-dados/operadoras-de-planos-de-saude-ativas
     separator: ";"
-
 tool:
-  name: lista_operadoras_saude
+  name: newest_oldest_registro_ans
   description: >
-    Get list of active health insurance operators registered with ANS in Brazil.
-    Returns each operator with name, business modality, city, state, and registration date.
-    Can be filtered by state (UF), city, and/or business modality.
+    Get the most recent and oldest registration dates of health insurance operators in Brazil.
+    Returns the operator with the newest Registro ANS and the one with the oldest Registro ANS.
+    Can be filtered by state (UF) and/or business modality.
+  order: max
+  column: Data_Registro_ANS
   columns:
     - column: REGISTRO_OPERADORA
       label: "Registro ANS"
@@ -52,11 +53,8 @@ tool:
       param: city
       description: "City name, e.g. São Paulo, Rio de Janeiro"
       label: "em {value}"
-  limit: 60
-  sort:
-    column: Razao_Social
-    order: asc
   response: |
-    A ANS registra {count} operadoras de saúde ativas {filter_label}:
-    {list}
+    O registro mais recente de operadora de saúde {filter_label} é de {newest_row[Data_Registro_ANS]} ({newest_row[Razao_Social]}).
+    O registro mais antigo de operadora de saúde {filter_label} é de {oldest_row[Data_Registro_ANS]} ({oldest_row[Razao_Social]}).
     Fonte: {source}
+
