@@ -1,0 +1,20 @@
+[project]
+name = "mcp-ckan-dados-brasil"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "OKFN", email = "info@okfn.org" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:main"
+
+[project.entry-points."mcp_ckan"]
+mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:register_tools"
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
