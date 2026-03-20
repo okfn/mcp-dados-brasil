@@ -5,11 +5,6 @@ count = True
 statistics = True
 show-source = True
 
-# Ignore some common issues (optional, adjust as needed)
-; ignore =
-;     E203,  # whitespace before ':'
-;     W503,  # line break before binary operator
-
 # Exclude directories (optional)
 exclude =
     .git,
