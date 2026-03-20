@@ -9,6 +9,11 @@ authors = [
 requires-python = ">=3.14"
 dependencies = []
 
+[project.optional-dependencies]
+dev = [
+    "flake8>=6.0.0",  # Code linting
+]
+
 [project.scripts]
 mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:main"
 
