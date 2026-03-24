@@ -19,7 +19,7 @@ Add this repository to your MCP server configuration at the `deploy/tool_sources
     ref: main
     # if the repo is private, use a key
     # This private key file should be generated with something like
-    # ssh-keygen -t ed25519 -f keys/mcp-dados-brasil-key -N "" -C "deploy@mcp-server"s
+    # ssh-keygen -t ed25519 -f keys/mcp-dados-brasil-key -N "" -C "deploy@mcp-server"
     # and then add this public key to the GitHub repo's deploy keys (with read access, it'll be enough)
     # This key must be deployed in the MCP server's filesystem at the path specified below, and the private key file must have permissions set to 600 (read/write for owner only)
     key: deploy/keys/mcp-dados-brasil-key
