@@ -1,6 +1,52 @@
+import importlib
+from pathlib import Path
+
+# Load bolsa-familia module (hyphenated filename requires importlib)
+_bf_path = Path(__file__).parent / "datasets" / "bolsa-familia.py"
+_spec = importlib.util.spec_from_file_location("bolsa_familia", _bf_path)
+bolsa_familia = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(bolsa_familia)
 
 
 def register_tools(mcp):
+
+    @mcp.tool()
+    def bolsa_familia_list(municipio: str = None, codigo_ibge: int = None, limit: int = 20):
+        """List rows from the Bolsa Família dataset (beneficiary families per municipality).
+
+        Args:
+            municipio: Municipality name, e.g. "Cacoal" or "Porto Velho/RO".
+            codigo_ibge: IBGE municipality code to filter by, e.g. 110001.
+            limit: Maximum number of rows to return. Defaults to 20.
+
+        Returns:
+            str: Formatted list of Bolsa Família records.
+
+        Examples:
+            - bolsa_familia_list(municipio="Porto Velho")
+            - bolsa_familia_list(municipio="São Paulo/SP")
+            - bolsa_familia_list(codigo_ibge=110001)
+        """
+        return bolsa_familia.get_bolsa_familia_rows(municipio=municipio, codigo_ibge=codigo_ibge, limit=limit)
+
+    @mcp.tool()
+    def buscar_municipio(nome: str, limit: int = 10):
+        """Search for Brazilian municipalities by approximate name. Use this when the exact
+            municipality name is unknown or misspelled, to find the correct name before
+            calling bolsa_familia_list.
+
+        Args:
+            nome: Name (or partial/misspelled name) to search for, e.g. "Poto Velho".
+            limit: Maximum number of suggestions to return. Defaults to 10.
+
+        Returns:
+            str: List of matching municipality names with UF and IBGE codes.
+
+        Examples:
+            - buscar_municipio(nome="Poto Velho")
+            - buscar_municipio(nome="San Pablo")
+        """
+        return bolsa_familia.buscar_municipio(nome=nome, limit=limit)
 
     @mcp.tool()
     def political_questions(country=None):
