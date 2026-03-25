@@ -18,7 +18,8 @@ def register_tools(mcp):
             year: Year to filter the data. Defaults to 2026. We only have data from 2024 to 2026 (inclusive).
             limit: Maximum number of rows to return. Defaults to 20.
             state: Optional state abbreviation to filter results, e.g. "RO". If None, searches all states.
-            order_by: Column name to order the results by. This must a valid column + (optionally) "asc" or "desc" for ascending/descending.
+            order_by: Column name to order the results by. This must a valid column +
+                      (optionally) "asc" or "desc" for ascending/descending.
                       E.g. "qtd_familias_beneficiarias_bolsa_familia_s desc".
                       If None, defaults to the CSV order.
 
