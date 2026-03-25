@@ -50,7 +50,13 @@ def get_csv_data(year=2026, limit=100000):
     return df
 
 
-def get_bolsa_familia_rows(municipio: str = None, codigo_ibge: int = None, year: int = 2026, limit: int = 20) -> str:
+def get_bolsa_familia_rows(
+        municipio: str = None, codigo_ibge: int = None,
+        year: int = 2026,
+        limit: int = 20,
+        state: str = None,
+        order_by: str = None
+) -> str:
     """ Return a simple list of Bolsa Familia rows from the local CSV.
         A Municipality is required.
 
@@ -59,6 +65,9 @@ def get_bolsa_familia_rows(municipio: str = None, codigo_ibge: int = None, year:
         codigo_ibge: IBGE municipality code to filter by. If None, returns all.
         year: Year to filter the data. Defaults to 2026.
         limit: Max rows to return. Defaults to 20.
+        state: State abbreviation to filter by, e.g. "RO". If None, returns all.
+        order_by: Column name to order the results by. This must be pandas sort valid.
+                  If None, defaults to the CSV order.
 
     Returns:
         Formatted string with the rows.
@@ -80,6 +89,17 @@ def get_bolsa_familia_rows(municipio: str = None, codigo_ibge: int = None, year:
     df = get_csv_data(year=year, limit=100000)
     if codigo_ibge is not None:
         df = df[df["codigo_ibge"] == codigo_ibge]
+    if state is not None:
+        df = df[df["estado"] == state]
+    if order_by is not None:
+        order_parts = order_by.split()
+        if len(order_parts) == 2 and order_parts[1].lower() in ["asc", "desc"]:
+            order_col = order_parts[0]
+            ascending = order_parts[1].lower() == "asc"
+        else:
+            order_col = order_by
+            ascending = True
+        df = df.sort_values(by=order_col, ascending=ascending)
     total = len(df)
     df = df.head(limit)
 
@@ -94,5 +114,7 @@ def get_bolsa_familia_rows(municipio: str = None, codigo_ibge: int = None, year:
         )
 
     label = f" em {municipio}" if municipio else ""
+    if state is not None:
+        label += f" - {state}"
     header = f"Bolsa Família{label} - {len(lines)} registros (de {total} total):"
     return header + "\n" + "\n".join(lines)
