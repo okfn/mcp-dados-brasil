@@ -1,22 +1,17 @@
-import importlib
-from pathlib import Path
-
-# Load bolsa-familia module (hyphenated filename requires importlib)
-_bf_path = Path(__file__).parent / "datasets" / "bolsa-familia.py"
-_spec = importlib.util.spec_from_file_location("bolsa_familia", _bf_path)
-bolsa_familia = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(bolsa_familia)
+from mcp_ckan_dados_brasil.datasets import bolsa_familia
+from mcp_ckan_dados_brasil.datasets import municipios
 
 
 def register_tools(mcp):
 
     @mcp.tool()
-    def bolsa_familia_list(municipio: str = None, codigo_ibge: int = None, limit: int = 20):
+    def bolsa_familia_list(municipio: str = None, codigo_ibge: int = None, year: int = 2026, limit: int = 20):
         """List rows from the Bolsa Família dataset (beneficiary families per municipality).
 
         Args:
             municipio: Municipality name, e.g. "Cacoal" or "Porto Velho/RO".
             codigo_ibge: IBGE municipality code to filter by, e.g. 110001.
+            year: Year to filter the data. Defaults to 2026. We only have data from 2024-2026.
             limit: Maximum number of rows to return. Defaults to 20.
 
         Returns:
@@ -24,10 +19,10 @@ def register_tools(mcp):
 
         Examples:
             - bolsa_familia_list(municipio="Porto Velho")
-            - bolsa_familia_list(municipio="São Paulo/SP")
+            - bolsa_familia_list(municipio="São Paulo/SP", year=2025)
             - bolsa_familia_list(codigo_ibge=110001)
         """
-        return bolsa_familia.get_bolsa_familia_rows(municipio=municipio, codigo_ibge=codigo_ibge, limit=limit)
+        return bolsa_familia.get_bolsa_familia_rows(municipio=municipio, codigo_ibge=codigo_ibge, year=year, limit=limit)
 
     @mcp.tool()
     def buscar_municipio(nome: str, limit: int = 10):
@@ -46,7 +41,7 @@ def register_tools(mcp):
             - buscar_municipio(nome="Poto Velho")
             - buscar_municipio(nome="San Pablo")
         """
-        return bolsa_familia.buscar_municipio(nome=nome, limit=limit)
+        return municipios.buscar_municipio(nome=nome, limit=limit)
 
     @mcp.tool()
     def political_questions(country=None):
