@@ -55,6 +55,7 @@ def register_tools(mcp):
             limit: Maximum number of suggestions to return. Defaults to 10.
 
         Returns:
+            bool: Whether a match was found, and either the IBGE code or an error message with suggestions.
             str: List of matching municipality names with UF and IBGE codes.
 
         Examples:
