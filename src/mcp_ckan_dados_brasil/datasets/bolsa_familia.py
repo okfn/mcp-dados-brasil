@@ -101,6 +101,9 @@ def get_bolsa_familia_rows(
             order_col = order_by
             ascending = True
         df = df.sort_values(by=order_col, ascending=ascending)
+    else:
+        # By default, order by date ascending
+        df = df.sort_values(by="anomes_s", ascending=True)
     total = len(df)
     df = df.head(limit)
 
