@@ -126,8 +126,24 @@ def get_bolsa_familia_rows(
 
     table_rows_str = json.dumps(table_rows, ensure_ascii=False)
     table = f"<table>{table_rows_str}</table>"
+
+    # Bar chart: monthly "valor repassado"
+    chart_labels = []
+    chart_values = []
+    for _, row in df.iterrows():
+        chart_labels.append(str(int(row['anomes_s'])))
+        chart_values.append(round(float(row['valor_repassado_bolsa_familia_s']), 2))
+    chart_data = json.dumps({
+        "type": "bar",
+        "title": f"Valor Repassado Bolsa Família - {municipio or ''}",
+        "labels": chart_labels,
+        "values": chart_values,
+        "beginAtZero": False,
+    }, ensure_ascii=False)
+    chart = f"<chart>{chart_data}</chart>"
+
     label = f" em {municipio}" if municipio else ""
     if state is not None:
         label += f" - {state}"
     header = f"Bolsa Família{label} - {len(lines)} registros (de {total} total):"
-    return header + "\n" + "\n".join(lines) + table
+    return header + "\n" + "\n".join(lines) + table + chart
