@@ -92,16 +92,27 @@ def buscar_municipio(nome: str, limit: int = 10) -> str:
     matches = difflib.get_close_matches(key, all_keys, n=limit, cutoff=0.5)
 
     if not matches:
-        return False, f"Nenhum município encontrado similar a '{nome}'."
+        force = (
+            "<force>"
+            f"No municipality found similar to '{nome}'."
+            "</force>"
+        )
+        return False, f"{force} Nenhum município encontrado similar a '{nome}'."
 
     # deduplicate by display string (plain name and name/UF keys can both match)
     seen = set()
     lines = []
+    # Also, expose this similarities in a <table> like bolsa familia
+    table_rows = [["Nome/UF", "Código"]]
     munis = load_municipios()
     for m in matches:
         display = munis["name_to_display"][m]
         if display not in seen:
             seen.add(display)
             lines.append(display)
+            table_rows.append([display, munis["name_to_code"][m]])
+
+    table_rows_str = json.dumps(table_rows, ensure_ascii=False)
+    table = f"<table>{table_rows_str}</table>"
     header = f"Municípios similares a '{nome}':"
-    return True, header + "\n" + "\n".join(f"  - {line}" for line in lines)
+    return True, header + "\n" + "\n".join(f"  - {line}" for line in lines) + table

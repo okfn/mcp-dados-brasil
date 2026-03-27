@@ -1,3 +1,4 @@
+import json
 import logging
 import pandas as pd
 from pathlib import Path
@@ -77,12 +78,12 @@ def get_bolsa_familia_rows(
             "Por favor, forneça o nome do município para listar os registros do Bolsa Família. "
         )
 
-    resolved, error = resolve_municipio(municipio)
+    resolved, _ = resolve_municipio(municipio)
     if not resolved:
-        found, muni = buscar_municipio(municipio)
+        found, msg = buscar_municipio(municipio)
         if not found:
-            return f"Município '{municipio}' não encontrado. Also, no similar municipalities found. {error}"
-        return f"Município '{municipio}' não encontrado. Sugestões:\n{muni}"
+            return msg
+        return f"Município '{municipio}' não encontrado. Sugestões:\n{msg}"
 
     codigo_ibge = resolved
 
@@ -103,6 +104,9 @@ def get_bolsa_familia_rows(
     total = len(df)
     df = df.head(limit)
 
+    table_rows = [
+        ["IBGE", "Mês", "Famílias", "Valor", "Média"]
+    ]
     lines = []
     for _, row in df.iterrows():
         lines.append(
@@ -112,9 +116,18 @@ def get_bolsa_familia_rows(
             f"Valor: R$ {row['valor_repassado_bolsa_familia_s']:,.2f} | "
             f"Média: R$ {row['pbf_vlr_medio_benef_f']:,.2f}"
         )
+        table_rows.append([
+            row['codigo_ibge'],
+            row['anomes_s'],
+            row['qtd_familias_beneficiarias_bolsa_familia_s'],
+            f"R$ {row['valor_repassado_bolsa_familia_s']:,.2f}",
+            f"R$ {row['pbf_vlr_medio_benef_f']:,.2f}"
+        ])
 
+    table_rows_str = json.dumps(table_rows, ensure_ascii=False)
+    table = f"<table>{table_rows_str}</table>"
     label = f" em {municipio}" if municipio else ""
     if state is not None:
         label += f" - {state}"
     header = f"Bolsa Família{label} - {len(lines)} registros (de {total} total):"
-    return header + "\n" + "\n".join(lines)
+    return header + "\n" + "\n".join(lines) + table
