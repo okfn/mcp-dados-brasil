@@ -1,11 +1,20 @@
-import json
 import logging
 import pandas as pd
 from pathlib import Path
-from mcp_ckan_dados_brasil.datasets.municipios import resolve_municipio, buscar_municipio
+from mcp.types import CallToolResult, TextContent
+from mcp_server import DataToolOutput
+from mcp_ckan_dados_brasil.datasets.municipios import resolve_municipio, buscar_similares
 
 
 log = logging.getLogger(__name__)
+SOURCE_URL = "https://aplicacoes.mds.gov.br/sagi/servicos/misocial/"
+
+
+def _force_result(text, force_msg):
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structuredContent={"sources": [SOURCE_URL], "force": force_msg},
+    )
 
 
 def get_csv_data(year=2026, limit=100000):
@@ -57,7 +66,7 @@ def get_bolsa_familia_rows(
         limit: int = 20,
         state: str = None,
         order_by: str = None
-) -> str:
+) -> DataToolOutput:
     """ Return a simple list of Bolsa Familia rows from the local CSV.
         A Municipality is required.
 
@@ -71,19 +80,30 @@ def get_bolsa_familia_rows(
                   If None, defaults to the CSV order.
 
     Returns:
-        Formatted string with the rows.
+        DataToolOutput with rows listing, a structured table and a bar chart.
     """
     if municipio is None:
-        return (
-            "Por favor, forneça o nome do município para listar os registros do Bolsa Família. "
-        )
+        msg = "Por favor, forneça o nome do município para listar os registros do Bolsa Família."
+        return _force_result(text=msg, force_msg=msg)
 
     resolved, _ = resolve_municipio(municipio)
     if not resolved:
-        found, msg = buscar_municipio(municipio)
-        if not found:
-            return msg
-        return f"Município '{municipio}' não encontrado. Sugestões:\n{msg}"
+        matches = buscar_similares(municipio)
+        if not matches:
+            msg = f"Município '{municipio}' não encontrado."
+            return _force_result(msg, msg)
+        lines = [f"Município '{municipio}' não encontrado. Sugestões:"]
+        table_rows = [["Nome/UF", "Código"]]
+        for display, codigo in matches:
+            lines.append(f"  - {display}")
+            table_rows.append([display, codigo])
+        return CallToolResult(
+            content=[TextContent(type="text", text="\n".join(lines))],
+            structuredContent={
+                "sources": [SOURCE_URL],
+                "table": table_rows,
+            },
+        )
 
     codigo_ibge = resolved
 
@@ -102,7 +122,6 @@ def get_bolsa_familia_rows(
             ascending = True
         df = df.sort_values(by=order_col, ascending=ascending)
     else:
-        # By default, order by date ascending
         df = df.sort_values(by="anomes_s", ascending=True)
     total = len(df)
     df = df.head(limit)
@@ -111,6 +130,8 @@ def get_bolsa_familia_rows(
         ["IBGE", "Mês", "Famílias", "Valor", "Média"]
     ]
     lines = []
+    chart_labels = []
+    chart_values = []
     for _, row in df.iterrows():
         lines.append(
             f"  - IBGE: {int(row['codigo_ibge'])} | "
@@ -120,33 +141,34 @@ def get_bolsa_familia_rows(
             f"Média: R$ {row['pbf_vlr_medio_benef_f']:,.2f}"
         )
         table_rows.append([
-            row['codigo_ibge'],
-            row['anomes_s'],
-            row['qtd_familias_beneficiarias_bolsa_familia_s'],
+            int(row['codigo_ibge']),
+            int(row['anomes_s']),
+            int(row['qtd_familias_beneficiarias_bolsa_familia_s']),
             f"R$ {row['valor_repassado_bolsa_familia_s']:,.2f}",
-            f"R$ {row['pbf_vlr_medio_benef_f']:,.2f}"
+            f"R$ {row['pbf_vlr_medio_benef_f']:,.2f}",
         ])
-
-    table_rows_str = json.dumps(table_rows, ensure_ascii=False)
-    table = f"<table>{table_rows_str}</table>"
-
-    # Bar chart: monthly "valor repassado"
-    chart_labels = []
-    chart_values = []
-    for _, row in df.iterrows():
         chart_labels.append(str(int(row['anomes_s'])))
         chart_values.append(round(float(row['valor_repassado_bolsa_familia_s']), 2))
-    chart_data = json.dumps({
-        "type": "bar",
-        "title": f"Valor Repassado Bolsa Família - {municipio or ''}",
-        "labels": chart_labels,
-        "values": chart_values,
-        "beginAtZero": False,
-    }, ensure_ascii=False)
-    chart = f"<chart>{chart_data}</chart>"
 
     label = f" em {municipio}" if municipio else ""
     if state is not None:
         label += f" - {state}"
     header = f"Bolsa Família{label} - {len(lines)} registros (de {total} total):"
-    return header + "\n" + "\n".join(lines) + table + chart
+    text = header + "\n" + "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "title": f"Valor Repassado Bolsa Família - {municipio or ''}",
+        "labels": chart_labels,
+        "datasets": [{"label": "Valor (R$)", "data": chart_values}],
+        "beginAtZero": False,
+    }
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structuredContent={
+            "sources": [SOURCE_URL],
+            "table": table_rows,
+            "charts": [chart],
+        },
+    )
