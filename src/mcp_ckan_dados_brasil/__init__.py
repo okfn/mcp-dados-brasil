@@ -27,7 +27,11 @@ def register_tools(mcp):
                       If None, defaults to the CSV order.
 
         Returns:
-            str: Formatted list of Bolsa Família records.
+            Monthly Bolsa Família records for the requested municipality, with a table of
+            (IBGE, month, families, value, average) and a bar chart of value over time.
+            If `municipio` is missing or cannot be resolved, returns a force message asking
+            the user to clarify (or, when fuzzy matches exist, a table of similar-name
+            suggestions).
 
         Examples:
             - bolsa_familia_list(municipio="Porto Velho")
@@ -58,8 +62,8 @@ def register_tools(mcp):
             limit: Maximum number of suggestions to return. Defaults to 10.
 
         Returns:
-            DataToolOutput with a table of matching municipality names with UF and IBGE codes,
-            or a message when no similar municipality was found.
+            A table of municipalities matching the (possibly misspelled) name, each with its
+            UF and IBGE code. If no similar name is found, returns a force message saying so.
 
         Examples:
             - buscar_municipio(nome="Poto Velho")
@@ -74,7 +78,8 @@ def register_tools(mcp):
             For example: "Why is X data not available?" or "What did the Gobvernment open this data in this way?"
 
         Returns:
-            DataToolOutput with a message conveying the canned response.
+            A message with the canned response. The text is shown to the user verbatim;
+            no LLM rewording is needed.
 
         Examples:
             - political_questions()
