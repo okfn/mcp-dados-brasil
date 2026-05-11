@@ -19,7 +19,11 @@ APP_DIR = "mcp-ckan-dados-brasil"
 ZIP_FILE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
 )
-EMENDAS_FILENAME = "EmendasParlamentares_PorFavorecido.csv"
+EMENDAS_CSV_FILES = {
+    "EmendasParlamentares_PorFavorecido.csv": "emendas_por_favorecido",
+    "EmendasParlamentares.csv": "emendas",
+    "EmendasParlamentares_Convenios.csv": "emendas_convenios",
+}
 
 
 def get_data_dir() -> Path:
@@ -69,15 +73,16 @@ def main():
     data_path = get_data_dir()
 
     with ZipFile(BytesIO(response.content)) as zip_file:
-        zip_file.extract(EMENDAS_FILENAME, data_path)
-
-    print(f"Extracted {EMENDAS_FILENAME} in {data_path}...")
-
-    df = pd.read_csv(data_path / EMENDAS_FILENAME, sep=";", encoding="iso-8859-1")
-    df.columns = _make_sqlite_safe(df.columns)
+        for filename in EMENDAS_CSV_FILES:
+            zip_file.extract(filename, data_path)
+            print(f"Extracted {filename} in {data_path}...")
 
     conn = sqlite3.connect(get_db_path())
-    df.to_sql("emendas_por_favorecido", conn, if_exists="replace", index=False)
+    for filename, table_name in EMENDAS_CSV_FILES.items():
+        df = pd.read_csv(data_path / filename, sep=";", encoding="iso-8859-1")
+        df.columns = _make_sqlite_safe(df.columns)
+        df.to_sql(table_name, conn, if_exists="replace", index=False)
+        print(f"Table '{table_name}' loaded ({len(df)} rows).")
     conn.close()
 
     print(f"Database {get_db_path()} created successfully.")
