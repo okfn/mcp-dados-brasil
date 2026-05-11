@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "mcp-server",
+    "mcp-server @ git+https://github.com/okfn/mcp-ckan",
     "pandas>=2.0.0",
     "platformdirs>=4.9.6",
     "requests>=2.33.1",
