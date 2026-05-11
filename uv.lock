@@ -342,7 +342,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mcp-server", directory = "../mcp-ckan" },
+    { name = "mcp-server", git = "https://github.com/okfn/mcp-ckan" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "requests", specifier = ">=2.33.1" },
@@ -354,25 +354,11 @@ dev = [{ name = "flake8", specifier = ">=6.0.0" }]
 [[package]]
 name = "mcp-server"
 version = "0.0.1"
-source = { directory = "../mcp-ckan" }
+source = { git = "https://github.com/okfn/mcp-ckan#ba0a81d2d85fd5a7be02c1be62e79d6e7c01e1c8" }
 dependencies = [
     { name = "mcp" },
     { name = "pandas" },
     { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = "==1.26.0" },
-    { name = "pandas", specifier = "==3.0.1" },
-    { name = "pyyaml", specifier = "==6.0.3" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "inline-snapshot", specifier = ">=0.32.5" },
-    { name = "ipdb", specifier = ">=0.13.13" },
-    { name = "pytest" },
 ]
 
 [[package]]
