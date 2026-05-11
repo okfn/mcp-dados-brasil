@@ -335,20 +335,21 @@ dependencies = [
     { name = "requests" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "flake8" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "mcp-server", directory = "../mcp-ckan" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "requests", specifier = ">=2.33.1" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "flake8", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "mcp-server"

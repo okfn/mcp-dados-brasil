@@ -14,7 +14,7 @@ dependencies = [
     "requests>=2.33.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "flake8>=6.0.0",  # Code linting
 ]
