@@ -65,7 +65,6 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     table_rows = [
         [
             "Ano",
-            "Municipio",
             "UF",
             "Nº Emendas",
             "Empenhado (R$)",
@@ -73,21 +72,22 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
             "Pago (R$)",
         ]
     ]
-    chart_labels = []
-    chart_empenhado = []
-    chart_liquidado = []
-    chart_pago = []
+
+    # Group rows by UF for per-UF charts
+    uf_data = {}
+    for row in rows:
+        uf = row["uf"]
+        uf_data.setdefault(uf, []).append(row)
 
     for row in rows:
         ano = row["ano_da_emenda"]
-        mun = row["municipio"]
         uf = row["uf"]
         n = row["num_emendas"]
         emp = row["total_empenhado"] or 0.0
         liq = row["total_liquidado"] or 0.0
         pago = row["total_pago"] or 0.0
         lines.append(
-            f"  {ano} | {n} emendas | {municipio} | {uf} | "
+            f"  {ano} | {uf} | {n} emendas | "
             f"Empenhado: R$ {emp:,.2f} | "
             f"Liquidado: R$ {liq:,.2f} | "
             f"Pago: R$ {pago:,.2f}"
@@ -95,22 +95,44 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
         table_rows.append(
             [
                 ano,
-                n,
-                mun,
                 uf,
+                n,
                 f"R$ {emp:,.2f}",
                 f"R$ {liq:,.2f}",
                 f"R$ {pago:,.2f}",
             ]
         )
-        chart_labels.append(str(ano))
-        chart_empenhado.append(round(emp, 2))
-        chart_liquidado.append(round(liq, 2))
-        chart_pago.append(round(pago, 2))
+
+    # One chart per UF
+    charts = []
+    for uf, uf_rows in uf_data.items():
+        chart_labels = []
+        chart_empenhado = []
+        chart_liquidado = []
+        chart_pago = []
+        for row in uf_rows:
+            emp = row["total_empenhado"] or 0.0
+            liq = row["total_liquidado"] or 0.0
+            pago = row["total_pago"] or 0.0
+            chart_labels.append(str(row["ano_da_emenda"]))
+            chart_empenhado.append(round(emp, 2))
+            chart_liquidado.append(round(liq, 2))
+            chart_pago.append(round(pago, 2))
+        charts.append({
+            "type": "bar",
+            "title": f"Emendas Parlamentares - {municipio_upper} ({uf})",
+            "labels": chart_labels,
+            "datasets": [
+                {"label": "Empenhado (R$)", "data": chart_empenhado},
+                {"label": "Liquidado (R$)", "data": chart_liquidado},
+                {"label": "Pago (R$)", "data": chart_pago},
+            ],
+            "beginAtZero": True,
+        })
 
     text = "\n".join(lines)
 
-    return text_result(text, source_url=SOURCE_URL, table=table_rows)
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=charts)
 
 
 if __name__ == "__main__":
