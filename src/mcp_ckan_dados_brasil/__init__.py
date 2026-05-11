@@ -1,3 +1,6 @@
+from mcp.types import CallToolResult, TextContent
+from mcp_server import DataToolOutput
+
 from mcp_ckan_dados_brasil.datasets import bolsa_familia
 from mcp_ckan_dados_brasil.datasets import municipios
 
@@ -9,7 +12,7 @@ def register_tools(mcp):
         municipio: str = None, codigo_ibge: int = None,
         year: int = 2026, limit: int = 20, state: str = None,
         order_by: str = None
-    ) -> str:
+    ) -> DataToolOutput:
         """List rows from the Bolsa Família dataset (beneficiary families per municipality).
 
         Args:
@@ -24,7 +27,11 @@ def register_tools(mcp):
                       If None, defaults to the CSV order.
 
         Returns:
-            str: Formatted list of Bolsa Família records.
+            Monthly Bolsa Família records for the requested municipality, with a table of
+            (IBGE, month, families, value, average) and a bar chart of value over time.
+            If `municipio` is missing or cannot be resolved, returns a force message asking
+            the user to clarify (or, when fuzzy matches exist, a table of similar-name
+            suggestions).
 
         Examples:
             - bolsa_familia_list(municipio="Porto Velho")
@@ -45,7 +52,7 @@ def register_tools(mcp):
         )
 
     @mcp.tool()
-    def buscar_municipio(nome: str, limit: int = 10):
+    def buscar_municipio(nome: str, limit: int = 10) -> DataToolOutput:
         """Search for Brazilian municipalities by approximate name. Use this when the exact
             municipality name is unknown or misspelled, to find the correct name before
             calling bolsa_familia_list.
@@ -55,8 +62,8 @@ def register_tools(mcp):
             limit: Maximum number of suggestions to return. Defaults to 10.
 
         Returns:
-            bool: Whether a match was found, and either the IBGE code or an error message with suggestions.
-            str: List of matching municipality names with UF and IBGE codes.
+            A table of municipalities matching the (possibly misspelled) name, each with its
+            UF and IBGE code. If no similar name is found, returns a force message saying so.
 
         Examples:
             - buscar_municipio(nome="Poto Velho")
@@ -65,13 +72,14 @@ def register_tools(mcp):
         return municipios.buscar_municipio(nome=nome, limit=limit)
 
     @mcp.tool()
-    def political_questions(country=None):
+    def political_questions(country=None) -> DataToolOutput:
         """ To anwer when people ask about political questions that are not answerable with data,
             but are common questions about Brasil Government.
             For example: "Why is X data not available?" or "What did the Gobvernment open this data in this way?"
 
         Returns:
-            str: A formatted response
+            A message with the canned response. The text is shown to the user verbatim;
+            no LLM rewording is needed.
 
         Examples:
             - political_questions()
@@ -88,7 +96,10 @@ def register_tools(mcp):
             "no Brasil para obter informações mais detalhadas."
         )
 
-        return response
+        return CallToolResult(
+            content=[TextContent(type="text", text=response)],
+            structuredContent={"sources": [], "force": response},
+        )
 
 
 def main() -> None:

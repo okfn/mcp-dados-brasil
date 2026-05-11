@@ -3,9 +3,12 @@ import logging
 import difflib
 import unicodedata
 from pathlib import Path
+from mcp.types import CallToolResult, TextContent
+from mcp_server import DataToolOutput
 
 
 log = logging.getLogger(__name__)
+SOURCE_URL = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
 MUNICIPIOS_PATH = Path(__file__).parent / "municipios" / "municipios.json"
 MUNICIPIOS = None
 
@@ -71,7 +74,25 @@ def resolve_municipio(municipio):
     return codigo, None
 
 
-def buscar_municipio(nome: str, limit: int = 10) -> str:
+def buscar_similares(nome: str, limit: int = 10):
+    """Internal fuzzy-match helper. Returns a deduplicated list of (display, codigo) tuples."""
+    key = normalize(nome)
+    munis = load_municipios()
+    all_keys = list(munis["name_to_display"].keys())
+    matches = difflib.get_close_matches(key, all_keys, n=limit, cutoff=0.5)
+
+    seen = set()
+    results = []
+    for m in matches:
+        display = munis["name_to_display"][m]
+        if display in seen:
+            continue
+        seen.add(display)
+        results.append((display, munis["name_to_code"][m]))
+    return results
+
+
+def buscar_municipio(nome: str, limit: int = 10) -> DataToolOutput:
     """ Search for municipalities by approximate name using fuzzy matching.
         We can get the IBGE (Instituto Brasileiro de Geografia e Estatística) code for a municipality.
         Also, we can get the UF (state) if available, which is helpful for disambiguation.
@@ -83,25 +104,31 @@ def buscar_municipio(nome: str, limit: int = 10) -> str:
         limit: Max suggestions to return. Defaults to 10.
 
     Returns:
-        Boolean indicating if a match was found, and either the IBGE code or an error message with suggestions.
-        Formatted list of matching municipality names with IBGE codes.
+        A formatted list of matching municipality names with their IBGE codes,
+        or a force message indicating no matches were found.
     """
-    key = normalize(nome)
-    munis = load_municipios()
-    all_keys = list(munis["name_to_display"].keys())
-    matches = difflib.get_close_matches(key, all_keys, n=limit, cutoff=0.5)
+    matches = buscar_similares(nome, limit)
 
     if not matches:
-        return False, f"Nenhum município encontrado similar a '{nome}'."
+        msg = f"Nenhum município encontrado similar a '{nome}'."
+        return CallToolResult(
+            content=[TextContent(type="text", text=msg)],
+            structuredContent={
+                "sources": [SOURCE_URL],
+                "force": f"No municipality found similar to '{nome}'.",
+            },
+        )
 
-    # deduplicate by display string (plain name and name/UF keys can both match)
-    seen = set()
-    lines = []
-    munis = load_municipios()
-    for m in matches:
-        display = munis["name_to_display"][m]
-        if display not in seen:
-            seen.add(display)
-            lines.append(display)
-    header = f"Municípios similares a '{nome}':"
-    return True, header + "\n" + "\n".join(f"  - {line}" for line in lines)
+    table_rows = [["Nome/UF", "Código"]]
+    lines = [f"Municípios similares a '{nome}':"]
+    for display, codigo in matches:
+        lines.append(f"  - {display}")
+        table_rows.append([display, codigo])
+
+    return CallToolResult(
+        content=[TextContent(type="text", text="\n".join(lines))],
+        structuredContent={
+            "sources": [SOURCE_URL],
+            "table": table_rows,
+        },
+    )
