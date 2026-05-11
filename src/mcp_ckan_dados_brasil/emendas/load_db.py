@@ -79,7 +79,7 @@ def main():
 
     conn = sqlite3.connect(get_db_path())
     for filename, table_name in EMENDAS_CSV_FILES.items():
-        df = pd.read_csv(data_path / filename, sep=";", encoding="iso-8859-1")
+        df = pd.read_csv(data_path / filename, sep=";", decimal=",", low_memory=False, encoding="iso-8859-1")
         df.columns = _make_sqlite_safe(df.columns)
         df.to_sql(table_name, conn, if_exists="replace", index=False)
         print(f"Table '{table_name}' loaded ({len(df)} rows).")
