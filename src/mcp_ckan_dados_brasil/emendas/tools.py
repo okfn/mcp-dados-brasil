@@ -136,5 +136,109 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=charts)
 
 
+def quem_envia_emendas(municipio: str) -> DataToolOutput:
+    """Returns a list of emenda authors (nome_do_autor_da_emenda) with the total
+    valor_empenhado, valor_liquidado and valor_pago for the given municipio,
+    sorted by total empenhado descending.
+
+    Args:
+        municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+
+    Returns:
+        A ranking of parliamentary amendment authors for the given municipality,
+        showing how many emendas each authored and the total empenhado/liquidado/pago.
+        Includes a table and a horizontal bar chart.
+        If no results are found, returns a force message.
+    """
+    municipio_upper = municipio.strip().upper()
+
+    conn = sqlite3.connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+
+    # Check that the municipio exists
+    uf_rows = conn.execute(
+        "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
+        (municipio_upper,),
+    ).fetchall()
+
+    if not uf_rows:
+        conn.close()
+        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    rows = conn.execute(
+        """
+        SELECT nome_do_autor_da_emenda,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE municipio = ?
+        GROUP BY nome_do_autor_da_emenda
+        ORDER BY total_empenhado DESC
+        """,
+        (municipio_upper,),
+    ).fetchall()
+    conn.close()
+
+    ufs = ", ".join(r["uf"] for r in uf_rows)
+
+    lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", ""]
+    table_rows = [
+        [
+            "Autor",
+            "Nº Emendas",
+            "Empenhado (R$)",
+            "Liquidado (R$)",
+            "Pago (R$)",
+        ]
+    ]
+    chart_labels = []
+    chart_empenhado = []
+    chart_pago = []
+
+    for row in rows:
+        autor = row["nome_do_autor_da_emenda"]
+        n = row["num_emendas"]
+        emp = row["total_empenhado"] or 0.0
+        liq = row["total_liquidado"] or 0.0
+        pago = row["total_pago"] or 0.0
+        lines.append(
+            f"  {autor} | {n} emendas | "
+            f"Empenhado: R$ {emp:,.2f} | "
+            f"Liquidado: R$ {liq:,.2f} | "
+            f"Pago: R$ {pago:,.2f}"
+        )
+        table_rows.append(
+            [
+                autor,
+                n,
+                f"R$ {emp:,.2f}",
+                f"R$ {liq:,.2f}",
+                f"R$ {pago:,.2f}",
+            ]
+        )
+        chart_labels.append(autor)
+        chart_empenhado.append(round(emp, 2))
+        chart_pago.append(round(pago, 2))
+
+    text = "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "indexAxis": "y",
+        "title": f"Autores de Emendas - {municipio_upper}",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Empenhado (R$)", "data": chart_empenhado},
+            {"label": "Pago (R$)", "data": chart_pago},
+        ],
+        "beginAtZero": True,
+    }
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
 if __name__ == "__main__":
     print(emendas_por_municipio("PILAR"))
