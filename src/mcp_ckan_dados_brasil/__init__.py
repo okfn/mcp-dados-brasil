@@ -3,11 +3,12 @@ from mcp_server import DataToolOutput
 
 from mcp_ckan_dados_brasil.datasets import bolsa_familia
 from mcp_ckan_dados_brasil.datasets import municipios
+from mcp_ckan_dados_brasil.emendas import tools as emendas
 
 
 def register_tools(mcp):
 
-    @mcp.tool()
+    # @mcp.tool()
     def bolsa_familia_list(
         municipio: str = None, codigo_ibge: int = None,
         year: int = 2026, limit: int = 20, state: str = None,
@@ -51,7 +52,7 @@ def register_tools(mcp):
             state=state, order_by=order_by
         )
 
-    @mcp.tool()
+    # @mcp.tool()
     def buscar_municipio(nome: str, limit: int = 10) -> DataToolOutput:
         """Search for Brazilian municipalities by approximate name. Use this when the exact
             municipality name is unknown or misspelled, to find the correct name before
@@ -100,6 +101,10 @@ def register_tools(mcp):
             content=[TextContent(type="text", text=response)],
             structuredContent={"sources": [], "force": response},
         )
+
+    @mcp.tool()
+    def emendas_por_municipio(municipio: str) -> DataToolOutput:
+        return emendas.emendas_por_municipio(municipio)
 
 
 def main() -> None:
