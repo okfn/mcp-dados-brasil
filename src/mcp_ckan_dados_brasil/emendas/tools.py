@@ -2,6 +2,8 @@ import sqlite3
 
 from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
+from mcp_server.results import text_result
+
 
 from mcp_ckan_dados_brasil.emendas.load_db import get_db_path
 
@@ -38,10 +40,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     if not uf_rows:
         conn.close()
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
-        return CallToolResult(
-            content=[TextContent(type="text", text=msg)],
-            structuredContent={"sources": [SOURCE_URL], "force": msg},
-        )
+        return text_result(msg, source_url=SOURCE_URL)
 
     # Fetch yearly aggregates across all matching UFs
     rows = conn.execute(
@@ -81,7 +80,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
 
     for row in rows:
         ano = row["ano_da_emenda"]
-        municipio = row["municipio"]
+        mun = row["municipio"]
         uf = row["uf"]
         n = row["num_emendas"]
         emp = row["total_empenhado"] or 0.0
@@ -97,7 +96,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
             [
                 ano,
                 n,
-                municipio,
+                mun,
                 uf,
                 f"R$ {emp:,.2f}",
                 f"R$ {liq:,.2f}",
@@ -111,13 +110,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
 
     text = "\n".join(lines)
 
-    return CallToolResult(
-        content=[TextContent(type="text", text=text)],
-        structuredContent={
-            "sources": [SOURCE_URL],
-            "table": table_rows,
-        },
-    )
+    return text_result(text, source_url=SOURCE_URL, table=table_rows)
 
 
 if __name__ == "__main__":
