@@ -1,6 +1,5 @@
 import sqlite3
 
-from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
@@ -118,17 +117,19 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
             chart_empenhado.append(round(emp, 2))
             chart_liquidado.append(round(liq, 2))
             chart_pago.append(round(pago, 2))
-        charts.append({
-            "type": "bar",
-            "title": f"Emendas Parlamentares - {municipio_upper} ({uf})",
-            "labels": chart_labels,
-            "datasets": [
-                {"label": "Empenhado (R$)", "data": chart_empenhado},
-                {"label": "Liquidado (R$)", "data": chart_liquidado},
-                {"label": "Pago (R$)", "data": chart_pago},
-            ],
-            "beginAtZero": True,
-        })
+        charts.append(
+            {
+                "type": "bar",
+                "title": f"Emendas Parlamentares - {municipio_upper} ({uf})",
+                "labels": chart_labels,
+                "datasets": [
+                    {"label": "Empenhado (R$)", "data": chart_empenhado},
+                    {"label": "Liquidado (R$)", "data": chart_liquidado},
+                    {"label": "Pago (R$)", "data": chart_pago},
+                ],
+                "beginAtZero": True,
+            }
+        )
 
     text = "\n".join(lines)
 
