@@ -29,6 +29,3 @@ mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:register_tools"
 [build-system]
 requires = ["uv_build>=0.9.10,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.uv.sources]
-mcp-server = { path = "../mcp-ckan" }
