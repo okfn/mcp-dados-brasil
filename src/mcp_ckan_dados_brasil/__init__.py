@@ -52,7 +52,7 @@ def register_tools(mcp):
             state=state, order_by=order_by
         )
 
-    # @mcp.tool()
+    @mcp.tool()
     def buscar_municipio(nome: str, limit: int = 10) -> DataToolOutput:
         """Search for Brazilian municipalities by approximate name. Use this when the exact
             municipality name is unknown or misspelled, to find the correct name before
