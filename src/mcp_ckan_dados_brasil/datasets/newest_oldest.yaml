@@ -23,7 +23,7 @@ tool:
     Can be filtered by state (UF) and/or business modality.
   order: max
   column: Data_Registro_ANS
-  columns:
+  show:
     - column: REGISTRO_OPERADORA
       label: "Registro ANS"
     - column: CNPJ
@@ -54,7 +54,6 @@ tool:
       description: "City name, e.g. São Paulo, Rio de Janeiro"
       label: "em {value}"
   response: |
-    O registro mais recente de operadora de saúde {filter_label} é de {newest_row[Data_Registro_ANS]} ({newest_row[Razao_Social]}).
-    O registro mais antigo de operadora de saúde {filter_label} é de {oldest_row[Data_Registro_ANS]} ({oldest_row[Razao_Social]}).
+    O registro de operadora de saúde {filter_label} é de {row[Data_Registro_ANS]} ({row[Razao_Social]}).
     Fonte: {source}
 
