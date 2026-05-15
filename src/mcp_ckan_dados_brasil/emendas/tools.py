@@ -1,5 +1,7 @@
 import sqlite3
 
+from contextlib import contextmanager
+
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
@@ -9,6 +11,16 @@ from mcp_ckan_dados_brasil.emendas.load_db import get_db_path
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
 )
+
+
+@contextmanager
+def _db_connect():
+    conn = sqlite3.connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
@@ -27,38 +39,34 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     """
     municipio_upper = municipio.strip().upper()
 
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-
-    # Check how many UF matches we have
-    uf_rows = conn.execute(
-        "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-        (municipio_upper,),
-    ).fetchall()
+    with _db_connect() as conn:
+        uf_rows = conn.execute(
+            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
+            (municipio_upper,),
+        ).fetchall()
 
     if not uf_rows:
-        conn.close()
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL)
 
     # Fetch yearly aggregates across all matching UFs
-    rows = conn.execute(
-        """
-        SELECT ano_da_emenda,
-               municipio,
-               uf,
-               COUNT(*) as num_emendas,
-               SUM(valor_empenhado) as total_empenhado,
-               SUM(valor_liquidado) as total_liquidado,
-               SUM(valor_pago) as total_pago
-        FROM emendas
-        WHERE municipio = ?
-        GROUP BY uf, ano_da_emenda
-        ORDER BY uf, ano_da_emenda
-        """,
-        (municipio_upper,),
-    ).fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT ano_da_emenda,
+                   municipio,
+                   uf,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            WHERE municipio = ?
+            GROUP BY uf, ano_da_emenda
+            ORDER BY uf, ano_da_emenda
+            """,
+            (municipio_upper,),
+        ).fetchall()
 
     lines = [f"Emendas parlamentares para {municipio_upper}:", ""]
     table_rows = [
@@ -156,31 +164,31 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     conn.row_factory = sqlite3.Row
 
     # Check that the municipio exists
-    uf_rows = conn.execute(
-        "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-        (municipio_upper,),
-    ).fetchall()
+    with _db_connect() as conn:
+        uf_rows = conn.execute(
+            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
+            (municipio_upper,),
+        ).fetchall()
 
     if not uf_rows:
-        conn.close()
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    rows = conn.execute(
-        """
-        SELECT nome_do_autor_da_emenda,
-               COUNT(*) as num_emendas,
-               SUM(valor_empenhado) as total_empenhado,
-               SUM(valor_liquidado) as total_liquidado,
-               SUM(valor_pago) as total_pago
-        FROM emendas
-        WHERE municipio = ?
-        GROUP BY nome_do_autor_da_emenda
-        ORDER BY total_empenhado DESC
-        """,
-        (municipio_upper,),
-    ).fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT nome_do_autor_da_emenda,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            WHERE municipio = ?
+            GROUP BY nome_do_autor_da_emenda
+            ORDER BY total_empenhado DESC
+            """,
+            (municipio_upper,),
+        ).fetchall()
 
     ufs = ", ".join(r["uf"] for r in uf_rows)
 
@@ -252,24 +260,21 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         showing the total valor_recebido and number of emendas per favorecido.
         Includes a table and a horizontal bar chart.
     """
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-
-    rows = conn.execute(
-        """
-        SELECT favorecido,
-               natureza_juridica,
-               tipo_favorecido,
-               COUNT(*) as num_emendas,
-               SUM(valor_recebido) as total_recebido
-        FROM emendas_por_favorecido
-        GROUP BY favorecido
-        ORDER BY total_recebido DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT favorecido,
+                   natureza_juridica,
+                   tipo_favorecido,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_recebido) as total_recebido
+            FROM emendas_por_favorecido
+            GROUP BY favorecido
+            ORDER BY total_recebido DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
 
     if not rows:
         msg = "Nenhum favorecido encontrado na base de dados."
