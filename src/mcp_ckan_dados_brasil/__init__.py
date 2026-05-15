@@ -7,7 +7,25 @@ from mcp_ckan_dados_brasil.datasets import municipios
 
 def register_tools(mcp):
 
-    @mcp.tool()
+    mcp.set_plugin_info(
+        description=(
+            "Ferramentas sobre dados abertos do Brasil (https://)dados.gov.br)"
+        ),
+        sample_questions=[
+            "Quais são as emendas parlamentares para o município de Pilar?",
+            "Quem são os parlamentares que mais enviam emendas para São Paulo?",
+            "Top 10 favorecidos das emendas parlamentares",
+            "Top 20 favorecidos das emendas parlamentares",
+            "Emendas para Saúde no município de São Paulo",
+            "Quanto Belo Horizonte recebeu em emendas de Educação?",
+            "Emendas para Assistência Social em Manaus",
+            "Quais funções de governo recebem mais recursos de emendas?",
+            "Quais subfunções concentram mais valor empenhado em emendas?",
+            "Quem destina emendas parlamentares para Salvador?",
+        ],
+    )
+
+    # @mcp.tool()
     def bolsa_familia_list(
         municipio: str = None, codigo_ibge: int = None,
         year: int = 2026, limit: int = 20, state: str = None,
