@@ -118,5 +118,9 @@ def register_tools(mcp):
     def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutput:
         return emendas.emendas_a_municipio_por_funcao(municipio, funcao)
 
+    @mcp.tool()
+    def list_funcao() -> DataToolOutput:
+        return emendas.list_funcao()
+
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")

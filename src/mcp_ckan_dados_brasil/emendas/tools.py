@@ -478,5 +478,85 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
 
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
+
+def list_funcao() -> DataToolOutput:
+    """Return a table listing all available funcao (government functions) in the
+    emendas dataset.
+
+    Returns:
+        A table of all distinct funcao values available in the parliamentary amendments
+        (emendas parlamentares) dataset, with the number of emendas and total
+        valor_empenhado per funcao.
+    """
+    with _db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT nome_funcao,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            GROUP BY nome_funcao
+            ORDER BY total_empenhado DESC
+            """
+        ).fetchall()
+
+    if not rows:
+        msg = "Nenhuma função encontrada na base de dados."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    lines = [f"Funções disponíveis nas emendas parlamentares ({len(rows)} funções):", ""]
+    table_rows = [
+        [
+            "Função",
+            "Nº Emendas",
+            "Empenhado (R$)",
+            "Liquidado (R$)",
+            "Pago (R$)",
+        ]
+    ]
+    chart_labels = []
+    chart_empenhado = []
+
+    for row in rows:
+        funcao = row["nome_funcao"]
+        n = row["num_emendas"]
+        emp = row["total_empenhado"] or 0.0
+        liq = row["total_liquidado"] or 0.0
+        pago = row["total_pago"] or 0.0
+        lines.append(
+            f"  {funcao} | {n} emendas | "
+            f"Empenhado: R$ {emp:,.2f} | "
+            f"Liquidado: R$ {liq:,.2f} | "
+            f"Pago: R$ {pago:,.2f}"
+        )
+        table_rows.append(
+            [
+                funcao,
+                n,
+                f"R$ {emp:,.2f}",
+                f"R$ {liq:,.2f}",
+                f"R$ {pago:,.2f}",
+            ]
+        )
+        chart_labels.append(funcao)
+        chart_empenhado.append(round(emp, 2))
+
+    text = "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "indexAxis": "y",
+        "title": "Funções das Emendas Parlamentares por Valor Empenhado",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Empenhado (R$)", "data": chart_empenhado},
+        ],
+        "beginAtZero": True,
+    }
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
 if __name__ == "__main__":
     print(emendas_por_municipio("PILAR"))
