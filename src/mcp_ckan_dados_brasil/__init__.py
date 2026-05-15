@@ -122,5 +122,9 @@ def register_tools(mcp):
     def list_funcao() -> DataToolOutput:
         return emendas.list_funcao()
 
+    @mcp.tool()
+    def list_subfuncao() -> DataToolOutput:
+        return emendas.list_subfuncao()
+
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")
