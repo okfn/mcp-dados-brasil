@@ -240,5 +240,92 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
+def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
+    """Returns which recipients (favorecidos) received the most money from
+    parliamentary amendments, ranked by total valor_recebido.
+
+    Args:
+        limit: Maximum number of recipients to return (default 10).
+
+    Returns:
+        A ranking of top recipients of parliamentary amendment funds,
+        showing the total valor_recebido and number of emendas per favorecido.
+        Includes a table and a horizontal bar chart.
+    """
+    conn = sqlite3.connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+
+    rows = conn.execute(
+        """
+        SELECT favorecido,
+               natureza_juridica,
+               tipo_favorecido,
+               COUNT(*) as num_emendas,
+               SUM(valor_recebido) as total_recebido
+        FROM emendas_por_favorecido
+        GROUP BY favorecido
+        ORDER BY total_recebido DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        msg = "Nenhum favorecido encontrado na base de dados."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    lines = [f"Top {len(rows)} favorecidos por valor recebido em emendas:", ""]
+    table_rows = [
+        [
+            "#",
+            "Favorecido",
+            "Natureza Jurídica",
+            "Tipo",
+            "Nº Emendas",
+            "Total Recebido (R$)",
+        ]
+    ]
+    chart_labels = []
+    chart_recebido = []
+
+    for i, row in enumerate(rows, start=1):
+        favorecido = row["favorecido"]
+        natureza = row["natureza_juridica"] or ""
+        tipo = row["tipo_favorecido"] or ""
+        n = row["num_emendas"]
+        total = row["total_recebido"] or 0.0
+        lines.append(
+            f"  {i}. {favorecido} | {natureza} | {tipo} | "
+            f"{n} emendas | Recebido: R$ {total:,.2f}"
+        )
+        table_rows.append(
+            [
+                i,
+                favorecido,
+                natureza,
+                tipo,
+                n,
+                f"R$ {total:,.2f}",
+            ]
+        )
+        chart_labels.append(favorecido)
+        chart_recebido.append(round(total, 2))
+
+    text = "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "indexAxis": "y",
+        "title": f"Top {len(rows)} Favorecidos por Valor Recebido",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Total Recebido (R$)", "data": chart_recebido},
+        ],
+        "beginAtZero": True,
+    }
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
 if __name__ == "__main__":
     print(emendas_por_municipio("PILAR"))

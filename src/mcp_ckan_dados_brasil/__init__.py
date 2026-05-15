@@ -110,5 +110,9 @@ def register_tools(mcp):
     def quem_envia_emendas(municipio: str) -> DataToolOutput:
         return emendas.quem_envia_emendas(municipio)
 
+    @mcp.tool()
+    def top_favorecidos_das_emendas(limit: str) -> DataToolOutput:
+        return emendas.top_favorecidos_das_emendas(limit)
+
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")
