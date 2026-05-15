@@ -160,9 +160,6 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     """
     municipio_upper = municipio.strip().upper()
 
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-
     # Check that the municipio exists
     with _db_connect() as conn:
         uf_rows = conn.execute(
