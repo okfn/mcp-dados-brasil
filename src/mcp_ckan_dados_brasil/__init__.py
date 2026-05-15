@@ -219,5 +219,6 @@ def register_tools(mcp):
         """
         return emendas.list_subfuncao()
 
+
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")
