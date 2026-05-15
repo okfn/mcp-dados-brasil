@@ -329,5 +329,154 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
 
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
+
+def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutput:
+    """Returns the amounts of emendas for a given municipality filtered by a specific
+    funcao (government function), grouped by subfuncao and year.
+
+    Args:
+        municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+        funcao: Government function name to filter by, e.g. "Saúde", "Educação",
+                "Assistência Social". Case-insensitive match.
+
+    Returns:
+        A breakdown of parliamentary amendments (emendas parlamentares) for the given
+        municipality and function, grouped by subfunction and year. Shows
+        valor_empenhado, valor_liquidado and valor_pago totals.
+        If the municipality or function is not found, returns a force message with
+        suggestions.
+    """
+    municipio_upper = municipio.strip().upper()
+    funcao_upper = funcao.strip().upper()
+
+    with _db_connect() as conn:
+        # Check that the municipio exists
+        uf_rows = conn.execute(
+            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
+            (municipio_upper,),
+        ).fetchall()
+
+    if not uf_rows:
+        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    with _db_connect() as conn:
+        # Check available funcoes for this municipio
+        funcao_rows = conn.execute(
+            "SELECT DISTINCT nome_funcao FROM emendas WHERE municipio = ? ORDER BY nome_funcao",
+            (municipio_upper,),
+        ).fetchall()
+
+    available_funcoes = [r["nome_funcao"] for r in funcao_rows]
+    matched_funcao = None
+    for f in available_funcoes:
+        if f.upper() == funcao_upper:
+            matched_funcao = f
+            break
+
+    if matched_funcao is None:
+        funcoes_list = ", ".join(available_funcoes)
+        msg = (
+            f"Função '{funcao}' não encontrada para o município '{municipio}'. "
+            f"Funções disponíveis: {funcoes_list}"
+        )
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    # Fetch subfunction breakdown
+    with _db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT ano_da_emenda,
+                   municipio,
+                   uf,
+                   nome_funcao,
+                   nome_subfuncao,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            WHERE municipio = ? AND nome_funcao = ?
+            GROUP BY uf, ano_da_emenda, nome_subfuncao
+            ORDER BY uf, ano_da_emenda, nome_subfuncao
+            """,
+            (municipio_upper, matched_funcao),
+        ).fetchall()
+
+    ufs = ", ".join(r["uf"] for r in uf_rows)
+
+    lines = [
+        f"Emendas parlamentares para {municipio_upper} ({ufs}) — Função: {matched_funcao}:",
+        "",
+    ]
+    table_rows = [
+        [
+            "Ano",
+            "UF",
+            "Subfunção",
+            "Nº Emendas",
+            "Empenhado (R$)",
+            "Liquidado (R$)",
+            "Pago (R$)",
+        ]
+    ]
+
+    for row in rows:
+        ano = row["ano_da_emenda"]
+        uf = row["uf"]
+        subfuncao = row["nome_subfuncao"] or "—"
+        n = row["num_emendas"]
+        emp = row["total_empenhado"] or 0.0
+        liq = row["total_liquidado"] or 0.0
+        pago = row["total_pago"] or 0.0
+        lines.append(
+            f"  {ano} | {uf} | {subfuncao} | {n} emendas | "
+            f"Empenhado: R$ {emp:,.2f} | "
+            f"Liquidado: R$ {liq:,.2f} | "
+            f"Pago: R$ {pago:,.2f}"
+        )
+        table_rows.append(
+            [
+                ano,
+                uf,
+                subfuncao,
+                n,
+                f"R$ {emp:,.2f}",
+                f"R$ {liq:,.2f}",
+                f"R$ {pago:,.2f}",
+            ]
+        )
+
+    # Aggregate by year for chart (across all subfunções)
+    yearly_data = {}
+    for row in rows:
+        ano = str(row["ano_da_emenda"])
+        if ano not in yearly_data:
+            yearly_data[ano] = {"empenhado": 0.0, "liquidado": 0.0, "pago": 0.0}
+        yearly_data[ano]["empenhado"] += row["total_empenhado"] or 0.0
+        yearly_data[ano]["liquidado"] += row["total_liquidado"] or 0.0
+        yearly_data[ano]["pago"] += row["total_pago"] or 0.0
+
+    chart_labels = sorted(yearly_data.keys())
+    chart_empenhado = [round(yearly_data[y]["empenhado"], 2) for y in chart_labels]
+    chart_liquidado = [round(yearly_data[y]["liquidado"], 2) for y in chart_labels]
+    chart_pago = [round(yearly_data[y]["pago"], 2) for y in chart_labels]
+
+    chart = {
+        "type": "bar",
+        "title": f"Emendas — {municipio_upper} — {matched_funcao}",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Empenhado (R$)", "data": chart_empenhado},
+            {"label": "Liquidado (R$)", "data": chart_liquidado},
+            {"label": "Pago (R$)", "data": chart_pago},
+        ],
+        "beginAtZero": True,
+    }
+
+    text = "\n".join(lines)
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
 if __name__ == "__main__":
     print(emendas_por_municipio("PILAR"))

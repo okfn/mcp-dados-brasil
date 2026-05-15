@@ -52,7 +52,7 @@ def register_tools(mcp):
             state=state, order_by=order_by
         )
 
-    @mcp.tool()
+    # @mcp.tool()
     def buscar_municipio(nome: str, limit: int = 10) -> DataToolOutput:
         """Search for Brazilian municipalities by approximate name. Use this when the exact
             municipality name is unknown or misspelled, to find the correct name before
@@ -111,8 +111,12 @@ def register_tools(mcp):
         return emendas.quem_envia_emendas(municipio)
 
     @mcp.tool()
-    def top_favorecidos_das_emendas(limit: str) -> DataToolOutput:
+    def top_favorecidos_das_emendas(limit: int) -> DataToolOutput:
         return emendas.top_favorecidos_das_emendas(limit)
+
+    @mcp.tool()
+    def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutput:
+        return emendas.emendas_a_municipio_por_funcao(municipio, funcao)
 
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")
