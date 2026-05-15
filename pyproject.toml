@@ -22,6 +22,11 @@ mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:main"
 [project.entry-points."mcp_ckan"]
 mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:register_tools"
 
+[project.urls]
+Homepage = "https://github.com/okfn/mcp-dados-brasil"
+Repository = "https://github.com/okfn/mcp-dados-brasil"
+Issues = "https://github.com/okfn/mcp-dados-brasil/issues"
+
 [build-system]
 requires = ["uv_build>=0.9.10,<0.10.0"]
 build-backend = "uv_build"
