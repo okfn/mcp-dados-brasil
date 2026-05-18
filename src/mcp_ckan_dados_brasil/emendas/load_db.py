@@ -15,9 +15,6 @@ from zipfile import ZipFile
 from platformdirs import user_data_path
 
 APP_DIR = "mcp-ckan-dados-brasil"
-ZIP_FILE_URL = (
-    "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
-)
 EMENDAS_CSV_FILES = {
     "EmendasParlamentares_PorFavorecido.csv": "emendas_por_favorecido",
     "EmendasParlamentares.csv": "emendas",
