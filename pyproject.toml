@@ -21,7 +21,7 @@ dev = [
 
 [project.scripts]
 mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:main"
-load-db = "mcp_ckan_dados_brasil.emendas.load_db:main"
+load-emendas-db = "mcp_ckan_dados_brasil.emendas.load_db:main"
 
 [project.entry-points."mcp_ckan"]
 mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:register_tools"
