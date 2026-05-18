@@ -1,0 +1,59 @@
+engine: top_row
+
+# More info on this repo at datasets/operadoras_saude/README.md
+# Sample queries this dataset should be able to answer (in portuguese):
+# - Qual é a data de registro mais recente de operadoras de saúde no Brasil?
+# - Qual é a data de registro mais antiga de operadoras de saúde no Brasil?
+# - Qual é a data de registro mais recente de operadoras de saúde no estado de São Paulo?
+# - Qual é a data de registro mais antiga de operadoras de saúde na modalidade Medicina de Grupo?
+# - Qual é a data de registro mais recente de operadoras de saúde na cidade do Rio de Janeiro?
+
+dataset:
+  name: newest-oldest-registro-ans
+  description: "Registro más reciente y más antiguo de operadoras de salud en Brasil"
+  source:
+    csv: https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/Relatorio_cadop.csv
+    url: https://dados.gov.br/dados/conjuntos-dados/operadoras-de-planos-de-saude-ativas
+    separator: ";"
+tool:
+  name: newest_oldest_registro_ans
+  description: >
+    Get the most recent and oldest registration dates of health insurance operators in Brazil.
+    Returns the operator with the newest Registro ANS and the one with the oldest Registro ANS.
+    Can be filtered by state (UF) and/or business modality.
+  order: max
+  column: Data_Registro_ANS
+  show:
+    - column: REGISTRO_OPERADORA
+      label: "Registro ANS"
+    - column: CNPJ
+      label: "CNPJ"
+    - column: Razao_Social
+      label: "Razão Social"
+    - column: Nome_Fantasia
+      label: "Nome Fantasia"
+    - column: Modalidade
+      label: "Modalidade"
+    - column: Cidade
+      label: "Cidade"
+    - column: UF
+      label: "UF"
+    - column: Data_Registro_ANS
+      label: "Registro"
+  filters:
+    - column: UF
+      param: state
+      description: "State abbreviation, e.g. SP, RJ, MG"
+      label: "no estado {value}"
+    - column: Modalidade
+      param: modality
+      description: "Business modality, e.g. Medicina de Grupo, Odontologia de Grupo, Cooperativa Médica, Administradora de Benefícios"
+      label: "modalidade {value}"
+    - column: Cidade
+      param: city
+      description: "City name, e.g. São Paulo, Rio de Janeiro"
+      label: "em {value}"
+  response: |
+    O registro de operadora de saúde {filter_label} é de {row[Data_Registro_ANS]} ({row[Razao_Social]}).
+    Fonte: {source}
+
