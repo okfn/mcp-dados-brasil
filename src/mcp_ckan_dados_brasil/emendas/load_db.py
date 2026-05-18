@@ -4,14 +4,13 @@ Downloads the dataset from the data portal, unzips it and creates an SQLite data
 """
 
 import sqlite3
-import requests
 import pandas as pd
 import re
 import unicodedata
 
+from importlib import resources
 from pathlib import Path
 from zipfile import ZipFile
-from io import BytesIO
 
 from platformdirs import user_data_path
 
@@ -67,12 +66,10 @@ def _make_sqlite_safe(columns: pd.Index) -> pd.Index:
 
 
 def main():
-    response = requests.get(ZIP_FILE_URL)
-    response.raise_for_status()
-
     data_path = get_data_dir()
 
-    with ZipFile(BytesIO(response.content)) as zip_file:
+    # Here __package__ references: mcp_ckan_dados_brasil.emendas
+    with ZipFile(resources.open_binary(__package__, 'data/EmendasParlamentares.zip')) as zip_file:
         for filename in EMENDAS_CSV_FILES:
             zip_file.extract(filename, data_path)
             print(f"Extracted {filename} in {data_path}...")
