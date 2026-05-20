@@ -1,0 +1,62 @@
+engine: row_list
+
+# More info on this repo at datasets/operadoras_saude/README.md
+# Sample queries this dataset should be able to answer (in portuguese):
+# - Liste as operadoras de saúde na cidade do Rio de Janeiro
+# - Quais cooperativas médicas estão registradas em Minas Gerais?
+# - Quais operadoras de odontologia de grupo existem no Brasil?
+# - Quais são as administradoras de benefícios ativas no Paraná?
+# - Liste as operadoras de medicina de grupo em Curitiba
+
+dataset:
+  name: lista-operadoras-saude
+  description: "Lista de operadoras de planos de saúde ativas no Brasil (ANS)"
+  source:
+    csv: https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/Relatorio_cadop.csv
+    url: https://dados.gov.br/dados/conjuntos-dados/operadoras-de-planos-de-saude-ativas
+    separator: ";"
+
+tool:
+  name: lista_operadoras_saude
+  description: >
+    Get list of active health insurance operators registered with ANS in Brazil.
+    Returns each operator with name, business modality, city, state, and registration date.
+    Can be filtered by state (UF), city, and/or business modality.
+  columns:
+    - column: REGISTRO_OPERADORA
+      label: "Registro ANS"
+    - column: CNPJ
+      label: "CNPJ"
+    - column: Razao_Social
+      label: "Razão Social"
+    - column: Nome_Fantasia
+      label: "Nome Fantasia"
+    - column: Modalidade
+      label: "Modalidade"
+    - column: Cidade
+      label: "Cidade"
+    - column: UF
+      label: "UF"
+    - column: Data_Registro_ANS
+      label: "Registro"
+  filters:
+    - column: UF
+      param: state
+      description: "State abbreviation, e.g. SP, RJ, MG"
+      label: "no estado {value}"
+    - column: Modalidade
+      param: modality
+      description: "Business modality, e.g. Medicina de Grupo, Odontologia de Grupo, Cooperativa Médica, Administradora de Benefícios"
+      label: "modalidade {value}"
+    - column: Cidade
+      param: city
+      description: "City name, e.g. São Paulo, Rio de Janeiro"
+      label: "em {value}"
+  limit: 60
+  sort:
+    column: Razao_Social
+    order: asc
+  response: |
+    A ANS registra {count} operadoras de saúde ativas {filter_label}:
+    {list}
+    Fonte: {source}
