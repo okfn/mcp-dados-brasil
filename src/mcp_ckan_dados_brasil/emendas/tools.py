@@ -1,26 +1,12 @@
-import sqlite3
-
-from contextlib import contextmanager
-
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
+from mcp_ckan_dados_brasil.emendas.load_db import db_connect
 
-from mcp_ckan_dados_brasil.emendas.load_db import get_db_path
 
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
 )
-
-
-@contextmanager
-def _db_connect():
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
 
 
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
@@ -39,7 +25,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     """
     municipio_upper = municipio.strip().upper()
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
             (municipio_upper,),
@@ -50,7 +36,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
         return text_result(msg, source_url=SOURCE_URL)
 
     # Fetch yearly aggregates across all matching UFs
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT ano_da_emenda,
@@ -161,7 +147,7 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     municipio_upper = municipio.strip().upper()
 
     # Check that the municipio exists
-    with _db_connect() as conn:
+    with db_connect() as conn:
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
             (municipio_upper,),
@@ -171,7 +157,7 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_do_autor_da_emenda,
@@ -257,7 +243,7 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         showing the total valor_recebido and number of emendas per favorecido.
         Includes a table and a horizontal bar chart.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT favorecido,
@@ -349,7 +335,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     municipio_upper = municipio.strip().upper()
     funcao_upper = funcao.strip().upper()
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         # Check that the municipio exists
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
@@ -360,7 +346,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         # Check available funcoes for this municipio
         funcao_rows = conn.execute(
             "SELECT DISTINCT nome_funcao FROM emendas WHERE municipio = ? ORDER BY nome_funcao",
@@ -383,7 +369,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     # Fetch subfunction breakdown
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT ano_da_emenda,
@@ -488,7 +474,7 @@ def list_funcao() -> DataToolOutput:
         (emendas parlamentares) dataset, with the number of emendas and total
         valor_empenhado per funcao.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_funcao,
@@ -568,7 +554,7 @@ def list_subfuncao() -> DataToolOutput:
         (emendas parlamentares) dataset, with the number of emendas and total
         valor_empenhado per funcao.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_subfuncao,
@@ -657,7 +643,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     autor_upper = autor.strip().upper()
     autor_like = f"%{autor_upper}%"
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         # Find matching authors
         author_rows = conn.execute(
             "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
@@ -667,7 +653,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
 
     if not author_rows:
         # Try to suggest similar authors
-        with _db_connect() as conn:
+        with db_connect() as conn:
             suggestions = conn.execute(
                 "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
                 "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
@@ -687,7 +673,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     placeholders = ",".join("?" for _ in matched_authors)
 
     # Fetch yearly aggregates per municipality
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             f"""
             SELECT nome_do_autor_da_emenda,
@@ -707,7 +693,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         ).fetchall()
 
     # Also get overall totals per year for the chart
-    with _db_connect() as conn:
+    with db_connect() as conn:
         yearly_rows = conn.execute(
             f"""
             SELECT ano_da_emenda,
@@ -808,7 +794,7 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     autor_upper = autor.strip().upper()
     autor_like = f"%{autor_upper}%"
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         author_rows = conn.execute(
             "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
             "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
@@ -816,7 +802,7 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         ).fetchall()
 
     if not author_rows:
-        with _db_connect() as conn:
+        with db_connect() as conn:
             suggestions = conn.execute(
                 "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
                 "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
@@ -835,7 +821,7 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
     placeholders = ",".join("?" for _ in matched_authors)
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             f"""
             SELECT favorecido,
