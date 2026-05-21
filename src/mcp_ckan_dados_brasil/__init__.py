@@ -26,6 +26,7 @@ def register_tools(mcp):
             "Quais emendas o parlamentar ABILIO SANTANA destinou?",
             "Quais favorecidos receberam emendas de LULA DA FONTE?",
             "Quanto é que a favorecido 100 Sports LTDA recebeu com as emendas?",
+            "Para que serviu o dinheiro enviado pelo deputado ABILIO SANTANA?",
         ],
     )
 
