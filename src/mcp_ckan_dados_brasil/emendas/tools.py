@@ -900,5 +900,92 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
+def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
+    """Search for favorecidos (recipients) by approximate name using partial match.
+
+    Use this when the exact favorecido name is unknown or misspelled, to find the
+    correct name before calling other tools.
+
+    Args:
+        nome: Name (or partial name) to search for, e.g. "BANCO DO BRASIL" or "FUNDO MUNICIPAL".
+              Case-insensitive partial match supported.
+        limit: Maximum number of results to return. Defaults to 10.
+
+    Returns:
+        A table of favorecidos matching the (possibly partial) name, each with its
+        natureza_juridica, tipo_favorecido, municipio, UF, number of emendas and
+        total valor_recebido.
+        If no results are found, returns a force message.
+    """
+    nome_upper = nome.strip().upper()
+    nome_like = f"%{nome_upper}%"
+
+    with db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT favorecido,
+                   natureza_juridica,
+                   tipo_favorecido,
+                   municipio_favorecido,
+                   uf_favorecido,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_recebido) as total_recebido
+            FROM emendas_por_favorecido
+            WHERE UPPER(favorecido) LIKE ?
+            GROUP BY favorecido
+            ORDER BY total_recebido DESC
+            LIMIT ?
+            """,
+            (nome_like, limit),
+        ).fetchall()
+
+    if not rows:
+        msg = f"Nenhum favorecido encontrado para '{nome}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    lines = [f"Favorecidos encontrados para '{nome}' ({len(rows)} resultados):", ""]
+    table_rows = [
+        [
+            "#",
+            "Favorecido",
+            "Natureza Jurídica",
+            "Tipo",
+            "Município",
+            "UF",
+            "Nº Emendas",
+            "Total Recebido (R$)",
+        ]
+    ]
+
+    for i, row in enumerate(rows, start=1):
+        favorecido = row["favorecido"]
+        natureza = row["natureza_juridica"] or ""
+        tipo = row["tipo_favorecido"] or ""
+        mun = row["municipio_favorecido"] or ""
+        uf = row["uf_favorecido"] or ""
+        n = row["num_emendas"]
+        total = row["total_recebido"] or 0.0
+        lines.append(
+            f"  {i}. {favorecido} | {natureza} | {tipo} | "
+            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
+        )
+        table_rows.append(
+            [
+                i,
+                favorecido,
+                natureza,
+                tipo,
+                mun,
+                uf,
+                n,
+                f"R$ {total:,.2f}",
+            ]
+        )
+
+    text = "\n".join(lines)
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows)
+
+
 if __name__ == "__main__":
     print(list_subfuncao())

@@ -25,6 +25,7 @@ def register_tools(mcp):
             "Quem destina emendas parlamentares para Salvador?",
             "Quais emendas o parlamentar ABILIO SANTANA destinou?",
             "Quais favorecidos receberam emendas de LULA DA FONTE?",
+            "Quanto é que a favorecido 100 Sports LTDA recebeu com as emendas?",
         ],
     )
 
@@ -287,6 +288,30 @@ def register_tools(mcp):
             - favorecidos_por_autor(autor="LULA DA FONTE", limit=10)
         """
         return emendas.favorecidos_por_autor(autor, limit)
+
+    @mcp.tool()
+    def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
+        """Search for favorecidos (recipients of parliamentary amendments) by approximate name.
+
+        Use this when the exact favorecido name is unknown or misspelled, to find the
+        correct name before calling other tools.
+
+        Args:
+            nome: Name (or partial name) to search for, e.g. "BANCO DO BRASIL"
+                  or "FUNDO MUNICIPAL". Case-insensitive partial match supported.
+            limit: Maximum number of results to return. Defaults to 10.
+
+        Returns:
+            A table of favorecidos matching the (possibly partial) name, each with its
+            natureza_juridica, tipo_favorecido, municipio, UF, number of emendas and
+            total valor_recebido.
+            If no results are found, returns a force message.
+
+        Examples:
+            - buscar_favorecido(nome="BANCO DO BRASIL")
+            - buscar_favorecido(nome="FUNDO MUNICIPAL DE SAUDE")
+        """
+        return emendas.buscar_favorecido(nome, limit)
 
 
 def main() -> None:
