@@ -24,6 +24,7 @@ def register_tools(mcp):
             "Quais subfunções concentram mais valor empenhado em emendas?",
             "Quem destina emendas parlamentares para Salvador?",
             "Quais emendas o parlamentar ABILIO SANTANA destinou?",
+            "Quais favorecidos receberam emendas de LULA DA FONTE?",
         ],
     )
 
@@ -261,6 +262,31 @@ def register_tools(mcp):
             - list_subfuncao()
         """
         return emendas.list_subfuncao()
+
+    @mcp.tool()
+    def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+        """Returns the top recipients (favorecidos) of parliamentary amendments from a given
+        author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
+
+        Uses case-insensitive partial matching for the author name.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+            limit: Maximum number of recipients to return. Defaults to 20.
+
+        Returns:
+            A ranking of top recipients of amendment funds from the given author, showing
+            the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
+            number of emendas and total valor_recebido. Includes a table and a horizontal
+            bar chart.
+            If no author is found, returns a force message with suggestions.
+
+        Examples:
+            - favorecidos_por_autor(autor="ABILIO SANTANA")
+            - favorecidos_por_autor(autor="LULA DA FONTE", limit=10)
+        """
+        return emendas.favorecidos_por_autor(autor, limit)
 
 
 def main() -> None:

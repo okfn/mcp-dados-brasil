@@ -788,5 +788,131 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
 
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
+
+def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+    """Returns the top recipients (favorecidos) of parliamentary amendments from the given
+    author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
+
+    Args:
+        autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
+               Case-insensitive, matched with LIKE for partial/fuzzy matching.
+        limit: Maximum number of recipients to return. Defaults to 20.
+
+    Returns:
+        A ranking of top recipients of parliamentary amendment funds from the given author,
+        showing the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
+        number of emendas and total valor_recebido. Includes a table and a horizontal bar
+        chart.
+        If no author is found, returns a force message with suggestions.
+    """
+    autor_upper = autor.strip().upper()
+    autor_like = f"%{autor_upper}%"
+
+    with _db_connect() as conn:
+        author_rows = conn.execute(
+            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
+            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
+            (autor_like,),
+        ).fetchall()
+
+    if not author_rows:
+        with _db_connect() as conn:
+            suggestions = conn.execute(
+                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
+                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
+                (f"%{autor_upper[:3]}%",),
+            ).fetchall()
+        if suggestions:
+            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
+            msg = (
+                f"Nenhum autor encontrado para '{autor}'. "
+                f"Autores sugeridos: {names}"
+            )
+        else:
+            msg = f"Nenhum autor encontrado para '{autor}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    placeholders = ",".join("?" for _ in matched_authors)
+
+    with _db_connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT favorecido,
+                   natureza_juridica,
+                   tipo_favorecido,
+                   municipio_favorecido,
+                   uf_favorecido,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_recebido) as total_recebido
+            FROM emendas_por_favorecido
+            WHERE nome_do_autor_da_emenda IN ({placeholders})
+            GROUP BY favorecido
+            ORDER BY total_recebido DESC
+            LIMIT ?
+            """,
+            (*matched_authors, limit),
+        ).fetchall()
+
+    authors_str = ", ".join(matched_authors)
+    lines = [f"Top {len(rows)} favorecidos das emendas de {authors_str}:", ""]
+    table_rows = [
+        [
+            "#",
+            "Favorecido",
+            "Natureza Jurídica",
+            "Tipo",
+            "Município",
+            "UF",
+            "Nº Emendas",
+            "Total Recebido (R$)",
+        ]
+    ]
+    chart_labels = []
+    chart_recebido = []
+
+    for i, row in enumerate(rows, start=1):
+        favorecido = row["favorecido"]
+        natureza = row["natureza_juridica"] or ""
+        tipo = row["tipo_favorecido"] or ""
+        mun = row["municipio_favorecido"] or ""
+        uf = row["uf_favorecido"] or ""
+        n = row["num_emendas"]
+        total = row["total_recebido"] or 0.0
+        lines.append(
+            f"  {i}. {favorecido} | {natureza} | {tipo} | "
+            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
+        )
+        table_rows.append(
+            [
+                i,
+                favorecido,
+                natureza,
+                tipo,
+                mun,
+                uf,
+                n,
+                f"R$ {total:,.2f}",
+            ]
+        )
+        chart_labels.append(favorecido)
+        chart_recebido.append(round(total, 2))
+
+    text = "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "indexAxis": "y",
+        "title": f"Top Favorecidos — Emendas de {authors_str}",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Total Recebido (R$)", "data": chart_recebido},
+        ],
+        "beginAtZero": True,
+    }
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
 if __name__ == "__main__":
     print(list_subfuncao())
