@@ -23,6 +23,7 @@ def register_tools(mcp):
             "Quais funções de governo recebem mais recursos de emendas?",
             "Quais subfunções concentram mais valor empenhado em emendas?",
             "Quem destina emendas parlamentares para Salvador?",
+            "Quais emendas o parlamentar ABILIO SANTANA destinou?",
         ],
     )
 
@@ -222,6 +223,30 @@ def register_tools(mcp):
             - list_funcao()
         """
         return emendas.list_funcao()
+
+    @mcp.tool()
+    def emendas_por_autor(autor: str) -> DataToolOutput:
+        """Returns parliamentary amendments (emendas parlamentares) authored by a given
+        author (nome_do_autor_da_emenda), grouped by year and municipality.
+
+        Shows valor_empenhado, valor_liquidado and valor_pago totals per year/municipio.
+        Uses case-insensitive partial matching for the author name.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+
+        Returns:
+            A summary of parliamentary amendments authored by the given author,
+            grouped by year and municipality, with a table and bar chart of
+            empenhado/liquidado/pago per year.
+            If no results are found, returns a force message with suggestions.
+
+        Examples:
+            - emendas_por_autor(autor="ABILIO SANTANA")
+            - emendas_por_autor(autor="ABEL MESQUITA")
+        """
+        return emendas.emendas_por_autor(autor)
 
     @mcp.tool()
     def list_subfuncao() -> DataToolOutput:
