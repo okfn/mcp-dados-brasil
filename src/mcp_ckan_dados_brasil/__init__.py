@@ -313,6 +313,31 @@ def register_tools(mcp):
         """
         return emendas.buscar_favorecido(nome, limit)
 
+    @mcp.tool()
+    def detalhe_emendas_por_autor(autor: str, ano: int = None, limit: int = 30) -> DataToolOutput:
+        """Returns individual emenda records for a given author with full detail (funcao,
+        subfuncao, programa, acao, municipio, and all valor columns).
+
+        Unlike emendas_por_autor which aggregates by year/municipio, this shows each
+        individual emenda with its complete detail.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+            ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+            limit: Maximum number of emenda records to return. Defaults to 30.
+
+        Returns:
+            A detailed list of individual parliamentary amendments for the given author,
+            with full detail columns. Returns a table of results.
+            If no author is found, returns a force message with suggestions.
+
+        Examples:
+            - detalhe_emendas_por_autor(autor="ABILIO SANTANA")
+            - detalhe_emendas_por_autor(autor="LULA DA FONTE", ano=2025, limit=10)
+        """
+        return emendas.detalhe_emendas_por_autor(autor, ano, limit)
+
 
 def main() -> None:
     print("Hello from mcp-ckan-dados-brasil")
