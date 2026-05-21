@@ -987,7 +987,7 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
     return text_result(text, source_url=SOURCE_URL, table=table_rows)
 
 
-def detalhe_emendas_por_autor(autor: str, ano: int|None = None, limit: int = 30) -> DataToolOutput:
+def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
     """Returns the individual emenda records for a given author (nome_do_autor_da_emenda),
     showing full detail per emenda including funcao, subfuncao, programa, acao,
     municipio, and all valor columns.
