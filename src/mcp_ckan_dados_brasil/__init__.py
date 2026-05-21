@@ -314,7 +314,7 @@ def register_tools(mcp):
         return emendas.buscar_favorecido(nome_favorecido, limit)
 
     @mcp.tool()
-    def detalhe_emendas_por_autor(autor: str, ano: int = None, limit: int = 30) -> DataToolOutput:
+    def detalhe_emendas_por_autor(autor: str, ano: int|None = None, limit: int = 30) -> DataToolOutput:
         """Returns individual emenda records for a given author with full detail (funcao,
         subfuncao, programa, acao, municipio, and all valor columns).
 
