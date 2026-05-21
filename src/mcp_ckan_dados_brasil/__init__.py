@@ -290,7 +290,7 @@ def register_tools(mcp):
         return emendas.favorecidos_por_autor(autor, limit)
 
     @mcp.tool()
-    def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
+    def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
         """Search for favorecidos (recipients of parliamentary amendments) by approximate name.
 
         Use this when the exact favorecido name is unknown or misspelled, to find the
@@ -308,10 +308,10 @@ def register_tools(mcp):
             If no results are found, returns a force message.
 
         Examples:
-            - buscar_favorecido(nome="BANCO DO BRASIL")
-            - buscar_favorecido(nome="FUNDO MUNICIPAL DE SAUDE")
+            - buscar_favorecido(nome_favorecido="BANCO DO BRASIL")
+            - buscar_favorecido(nome_favorecido="FUNDO MUNICIPAL DE SAUDE")
         """
-        return emendas.buscar_favorecido(nome, limit)
+        return emendas.buscar_favorecido(nome_favorecido, limit)
 
     @mcp.tool()
     def detalhe_emendas_por_autor(autor: str, ano: int = None, limit: int = 30) -> DataToolOutput:

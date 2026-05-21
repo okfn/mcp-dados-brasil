@@ -900,7 +900,7 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
-def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
+def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
     """Search for favorecidos (recipients) by approximate name using partial match.
 
     Use this when the exact favorecido name is unknown or misspelled, to find the
@@ -917,7 +917,7 @@ def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
         total valor_recebido.
         If no results are found, returns a force message.
     """
-    nome_upper = nome.strip().upper()
+    nome_upper = nome_favorecido.strip().upper()
     nome_like = f"%{nome_upper}%"
 
     with db_connect() as conn:
@@ -940,10 +940,10 @@ def buscar_favorecido(nome: str, limit: int = 10) -> DataToolOutput:
         ).fetchall()
 
     if not rows:
-        msg = f"Nenhum favorecido encontrado para '{nome}'."
+        msg = f"Nenhum favorecido encontrado para '{nome_favorecido}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    lines = [f"Favorecidos encontrados para '{nome}' ({len(rows)} resultados):", ""]
+    lines = [f"Favorecidos encontrados para '{nome_favorecido}' ({len(rows)} resultados):", ""]
     table_rows = [
         [
             "#",
