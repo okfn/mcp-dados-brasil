@@ -8,6 +8,7 @@ import pandas as pd
 import re
 import unicodedata
 
+from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 from zipfile import ZipFile
@@ -32,6 +33,16 @@ def get_data_dir() -> Path:
 def get_db_path() -> Path:
     """Return the full path to the SQLite database file."""
     return get_data_dir() / "db.sqlite3"
+
+
+@contextmanager
+def db_connect():
+    conn = sqlite3.connect(get_db_path())
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def _slugify_column(name: str) -> str:

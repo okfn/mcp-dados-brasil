@@ -1,26 +1,12 @@
-import sqlite3
-
-from contextlib import contextmanager
-
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
+from mcp_ckan_dados_brasil.emendas.load_db import db_connect
 
-from mcp_ckan_dados_brasil.emendas.load_db import get_db_path
 
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
 )
-
-
-@contextmanager
-def _db_connect():
-    conn = sqlite3.connect(get_db_path())
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
 
 
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
@@ -39,7 +25,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     """
     municipio_upper = municipio.strip().upper()
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
             (municipio_upper,),
@@ -50,7 +36,7 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
         return text_result(msg, source_url=SOURCE_URL)
 
     # Fetch yearly aggregates across all matching UFs
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT ano_da_emenda,
@@ -161,7 +147,7 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     municipio_upper = municipio.strip().upper()
 
     # Check that the municipio exists
-    with _db_connect() as conn:
+    with db_connect() as conn:
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
             (municipio_upper,),
@@ -171,7 +157,7 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_do_autor_da_emenda,
@@ -257,7 +243,7 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         showing the total valor_recebido and number of emendas per favorecido.
         Includes a table and a horizontal bar chart.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT favorecido,
@@ -349,7 +335,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     municipio_upper = municipio.strip().upper()
     funcao_upper = funcao.strip().upper()
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         # Check that the municipio exists
         uf_rows = conn.execute(
             "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
@@ -360,7 +346,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    with _db_connect() as conn:
+    with db_connect() as conn:
         # Check available funcoes for this municipio
         funcao_rows = conn.execute(
             "SELECT DISTINCT nome_funcao FROM emendas WHERE municipio = ? ORDER BY nome_funcao",
@@ -383,7 +369,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     # Fetch subfunction breakdown
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT ano_da_emenda,
@@ -488,7 +474,7 @@ def list_funcao() -> DataToolOutput:
         (emendas parlamentares) dataset, with the number of emendas and total
         valor_empenhado per funcao.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_funcao,
@@ -568,7 +554,7 @@ def list_subfuncao() -> DataToolOutput:
         (emendas parlamentares) dataset, with the number of emendas and total
         valor_empenhado per funcao.
     """
-    with _db_connect() as conn:
+    with db_connect() as conn:
         rows = conn.execute(
             """
             SELECT nome_subfuncao,
@@ -637,6 +623,509 @@ def list_subfuncao() -> DataToolOutput:
     }
 
     return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def emendas_por_autor(autor: str) -> DataToolOutput:
+    """Returns emendas parlamentares authored by the given author (nome_do_autor_da_emenda),
+    grouped by year and municipio, sorted by year descending and total empenhado descending.
+
+    Args:
+        autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
+               Case-insensitive, matched with LIKE for partial/fuzzy matching.
+
+    Returns:
+        A summary of parliamentary amendments authored by the given author,
+        grouped by year and municipality. Shows valor_empenhado, valor_liquidado and
+        valor_pago totals per year/municipio.
+        If the author name matches multiple authors, returns results for all of them.
+        If no results are found, returns a force message with suggestions.
+    """
+    autor_upper = autor.strip().upper()
+    autor_like = f"%{autor_upper}%"
+
+    with db_connect() as conn:
+        # Find matching authors
+        author_rows = conn.execute(
+            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
+            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
+            (autor_like,),
+        ).fetchall()
+
+    if not author_rows:
+        # Try to suggest similar authors
+        with db_connect() as conn:
+            suggestions = conn.execute(
+                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
+                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
+                (f"%{autor_upper[:3]}%",),
+            ).fetchall()
+        if suggestions:
+            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
+            msg = (
+                f"Nenhum autor encontrado para '{autor}'. "
+                f"Autores sugeridos: {names}"
+            )
+        else:
+            msg = f"Nenhum autor encontrado para '{autor}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    placeholders = ",".join("?" for _ in matched_authors)
+
+    # Fetch yearly aggregates per municipality
+    with db_connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT nome_do_autor_da_emenda,
+                   ano_da_emenda,
+                   municipio,
+                   uf,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            WHERE nome_do_autor_da_emenda IN ({placeholders})
+            GROUP BY nome_do_autor_da_emenda, ano_da_emenda, municipio, uf
+            ORDER BY nome_do_autor_da_emenda, ano_da_emenda DESC, total_empenhado DESC
+            """,
+            matched_authors,
+        ).fetchall()
+
+    # Also get overall totals per year for the chart
+    with db_connect() as conn:
+        yearly_rows = conn.execute(
+            f"""
+            SELECT ano_da_emenda,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_empenhado) as total_empenhado,
+                   SUM(valor_liquidado) as total_liquidado,
+                   SUM(valor_pago) as total_pago
+            FROM emendas
+            WHERE nome_do_autor_da_emenda IN ({placeholders})
+            GROUP BY ano_da_emenda
+            ORDER BY ano_da_emenda
+            """,
+            matched_authors,
+        ).fetchall()
+
+    authors_str = ", ".join(matched_authors)
+    lines = [f"Emendas parlamentares de {authors_str}:", ""]
+    table_rows = [
+        [
+            "Autor",
+            "Ano",
+            "Município",
+            "UF",
+            "Nº Emendas",
+            "Empenhado (R$)",
+            "Liquidado (R$)",
+            "Pago (R$)",
+        ]
+    ]
+
+    for row in rows:
+        autor_name = row["nome_do_autor_da_emenda"]
+        ano = row["ano_da_emenda"]
+        mun = row["municipio"] or "—"
+        uf = row["uf"] or "—"
+        n = row["num_emendas"]
+        emp = row["total_empenhado"] or 0.0
+        liq = row["total_liquidado"] or 0.0
+        pago = row["total_pago"] or 0.0
+        lines.append(
+            f"  {autor_name} | {ano} | {mun}/{uf} | {n} emendas | "
+            f"Empenhado: R$ {emp:,.2f} | "
+            f"Liquidado: R$ {liq:,.2f} | "
+            f"Pago: R$ {pago:,.2f}"
+        )
+        table_rows.append(
+            [
+                autor_name,
+                ano,
+                mun,
+                uf,
+                n,
+                f"R$ {emp:,.2f}",
+                f"R$ {liq:,.2f}",
+                f"R$ {pago:,.2f}",
+            ]
+        )
+
+    # Build chart from yearly aggregates
+    chart_labels = [str(r["ano_da_emenda"]) for r in yearly_rows]
+    chart_empenhado = [round(r["total_empenhado"] or 0.0, 2) for r in yearly_rows]
+    chart_liquidado = [round(r["total_liquidado"] or 0.0, 2) for r in yearly_rows]
+    chart_pago = [round(r["total_pago"] or 0.0, 2) for r in yearly_rows]
+
+    chart = {
+        "type": "bar",
+        "title": f"Emendas Parlamentares — {authors_str}",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Empenhado (R$)", "data": chart_empenhado},
+            {"label": "Liquidado (R$)", "data": chart_liquidado},
+            {"label": "Pago (R$)", "data": chart_pago},
+        ],
+        "beginAtZero": True,
+    }
+
+    text = "\n".join(lines)
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+    """Returns the top recipients (favorecidos) of parliamentary amendments from the given
+    author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
+
+    Args:
+        autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
+               Case-insensitive, matched with LIKE for partial/fuzzy matching.
+        limit: Maximum number of recipients to return. Defaults to 20.
+
+    Returns:
+        A ranking of top recipients of parliamentary amendment funds from the given author,
+        showing the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
+        number of emendas and total valor_recebido. Includes a table and a horizontal bar
+        chart.
+        If no author is found, returns a force message with suggestions.
+    """
+    autor_upper = autor.strip().upper()
+    autor_like = f"%{autor_upper}%"
+
+    with db_connect() as conn:
+        author_rows = conn.execute(
+            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
+            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
+            (autor_like,),
+        ).fetchall()
+
+    if not author_rows:
+        with db_connect() as conn:
+            suggestions = conn.execute(
+                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
+                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
+                (f"%{autor_upper[:3]}%",),
+            ).fetchall()
+        if suggestions:
+            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
+            msg = (
+                f"Nenhum autor encontrado para '{autor}'. "
+                f"Autores sugeridos: {names}"
+            )
+        else:
+            msg = f"Nenhum autor encontrado para '{autor}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    placeholders = ",".join("?" for _ in matched_authors)
+
+    with db_connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT favorecido,
+                   natureza_juridica,
+                   tipo_favorecido,
+                   municipio_favorecido,
+                   uf_favorecido,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_recebido) as total_recebido
+            FROM emendas_por_favorecido
+            WHERE nome_do_autor_da_emenda IN ({placeholders})
+            GROUP BY favorecido
+            ORDER BY total_recebido DESC
+            LIMIT ?
+            """,
+            (*matched_authors, limit),
+        ).fetchall()
+
+    authors_str = ", ".join(matched_authors)
+    lines = [f"Top {len(rows)} favorecidos das emendas de {authors_str}:", ""]
+    table_rows = [
+        [
+            "#",
+            "Favorecido",
+            "Natureza Jurídica",
+            "Tipo",
+            "Município",
+            "UF",
+            "Nº Emendas",
+            "Total Recebido (R$)",
+        ]
+    ]
+    chart_labels = []
+    chart_recebido = []
+
+    for i, row in enumerate(rows, start=1):
+        favorecido = row["favorecido"]
+        natureza = row["natureza_juridica"] or ""
+        tipo = row["tipo_favorecido"] or ""
+        mun = row["municipio_favorecido"] or ""
+        uf = row["uf_favorecido"] or ""
+        n = row["num_emendas"]
+        total = row["total_recebido"] or 0.0
+        lines.append(
+            f"  {i}. {favorecido} | {natureza} | {tipo} | "
+            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
+        )
+        table_rows.append(
+            [
+                i,
+                favorecido,
+                natureza,
+                tipo,
+                mun,
+                uf,
+                n,
+                f"R$ {total:,.2f}",
+            ]
+        )
+        chart_labels.append(favorecido)
+        chart_recebido.append(round(total, 2))
+
+    text = "\n".join(lines)
+
+    chart = {
+        "type": "bar",
+        "indexAxis": "y",
+        "title": f"Top Favorecidos — Emendas de {authors_str}",
+        "labels": chart_labels,
+        "datasets": [
+            {"label": "Total Recebido (R$)", "data": chart_recebido},
+        ],
+        "beginAtZero": True,
+    }
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
+    """Search for favorecidos (recipients) by approximate name using partial match.
+
+    Use this when the exact favorecido name is unknown or misspelled, to find the
+    correct name before calling other tools.
+
+    Args:
+        nome: Name (or partial name) to search for, e.g. "BANCO DO BRASIL" or "FUNDO MUNICIPAL".
+              Case-insensitive partial match supported.
+        limit: Maximum number of results to return. Defaults to 10.
+
+    Returns:
+        A table of favorecidos matching the (possibly partial) name, each with its
+        natureza_juridica, tipo_favorecido, municipio, UF, number of emendas and
+        total valor_recebido.
+        If no results are found, returns a force message.
+    """
+    nome_upper = nome_favorecido.strip().upper()
+    nome_like = f"%{nome_upper}%"
+
+    with db_connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT favorecido,
+                   natureza_juridica,
+                   tipo_favorecido,
+                   municipio_favorecido,
+                   uf_favorecido,
+                   COUNT(*) as num_emendas,
+                   SUM(valor_recebido) as total_recebido
+            FROM emendas_por_favorecido
+            WHERE UPPER(favorecido) LIKE ?
+            GROUP BY favorecido
+            ORDER BY total_recebido DESC
+            LIMIT ?
+            """,
+            (nome_like, limit),
+        ).fetchall()
+
+    if not rows:
+        msg = f"Nenhum favorecido encontrado para '{nome_favorecido}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    lines = [f"Favorecidos encontrados para '{nome_favorecido}' ({len(rows)} resultados):", ""]
+    table_rows = [
+        [
+            "#",
+            "Favorecido",
+            "Natureza Jurídica",
+            "Tipo",
+            "Município",
+            "UF",
+            "Nº Emendas",
+            "Total Recebido (R$)",
+        ]
+    ]
+
+    for i, row in enumerate(rows, start=1):
+        favorecido = row["favorecido"]
+        natureza = row["natureza_juridica"] or ""
+        tipo = row["tipo_favorecido"] or ""
+        mun = row["municipio_favorecido"] or ""
+        uf = row["uf_favorecido"] or ""
+        n = row["num_emendas"]
+        total = row["total_recebido"] or 0.0
+        lines.append(
+            f"  {i}. {favorecido} | {natureza} | {tipo} | "
+            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
+        )
+        table_rows.append(
+            [
+                i,
+                favorecido,
+                natureza,
+                tipo,
+                mun,
+                uf,
+                n,
+                f"R$ {total:,.2f}",
+            ]
+        )
+
+    text = "\n".join(lines)
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows)
+
+
+def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
+    """Returns the individual emenda records for a given author (nome_do_autor_da_emenda),
+    showing full detail per emenda including funcao, subfuncao, programa, acao,
+    municipio, and all valor columns.
+
+    Unlike emendas_por_autor which aggregates by year/municipio, this tool shows
+    each individual emenda with its complete detail.
+
+    Args:
+        autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
+               Case-insensitive, matched with LIKE for partial/fuzzy matching.
+        ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+        limit: Maximum number of emenda records to return. Defaults to 30.
+
+    Returns:
+        A detailed list of individual parliamentary amendments for the given author,
+        with columns: Codigo, Ano, Tipo, Municipio, UF, Funcao, Subfuncao, Programa,
+        Acao, Empenhado (R$), Liquidado (R$), Pago (R$).
+        If no author is found, returns a force message with suggestions.
+    """
+    autor_upper = autor.strip().upper()
+    autor_like = f"%{autor_upper}%"
+
+    with db_connect() as conn:
+        author_rows = conn.execute(
+            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
+            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
+            (autor_like,),
+        ).fetchall()
+
+    if not author_rows:
+        with db_connect() as conn:
+            suggestions = conn.execute(
+                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
+                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
+                (f"%{autor_upper[:3]}%",),
+            ).fetchall()
+        if suggestions:
+            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
+            msg = (
+                f"Nenhum autor encontrado para '{autor}'. "
+                f"Autores sugeridos: {names}"
+            )
+        else:
+            msg = f"Nenhum autor encontrado para '{autor}'."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    placeholders = ",".join("?" for _ in matched_authors)
+    params = list(matched_authors)
+
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(ano)
+
+    params.append(limit)
+
+    with db_connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT codigo_da_emenda,
+                   ano_da_emenda,
+                   tipo_de_emenda,
+                   municipio,
+                   uf,
+                   nome_funcao,
+                   nome_subfuncao,
+                   nome_programa,
+                   nome_acao,
+                   valor_empenhado,
+                   valor_liquidado,
+                   valor_pago
+            FROM emendas
+            WHERE nome_do_autor_da_emenda IN ({placeholders}){ano_filter}
+            ORDER BY ano_da_emenda DESC, valor_empenhado DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+
+    authors_str = ", ".join(matched_authors)
+    ano_label = f" (ano {ano})" if ano else ""
+    lines = [f"Detalhe das emendas de {authors_str}{ano_label} ({len(rows)} registros):", ""]
+    table_rows = [
+        [
+            "Código",
+            "Ano",
+            "Tipo",
+            "Município",
+            "UF",
+            "Função",
+            "Subfunção",
+            "Programa",
+            "Ação",
+            "Empenhado (R$)",
+            "Liquidado (R$)",
+            "Pago (R$)",
+        ]
+    ]
+
+    for row in rows:
+        codigo = row["codigo_da_emenda"]
+        ano_emenda = row["ano_da_emenda"]
+        tipo = row["tipo_de_emenda"] or ""
+        mun = row["municipio"] or "—"
+        uf = row["uf"] or "—"
+        funcao = row["nome_funcao"] or ""
+        subfuncao = row["nome_subfuncao"] or ""
+        programa = row["nome_programa"] or ""
+        acao = row["nome_acao"] or ""
+        emp = row["valor_empenhado"] or 0.0
+        liq = row["valor_liquidado"] or 0.0
+        pago = row["valor_pago"] or 0.0
+        lines.append(
+            f"  {codigo} | {ano_emenda} | {tipo[:40]} | {mun}/{uf} | "
+            f"{funcao} / {subfuncao} | {programa[:30]} | {acao[:30]} | "
+            f"Empenhado: R$ {emp:,.2f} | Liquidado: R$ {liq:,.2f} | Pago: R$ {pago:,.2f}"
+        )
+        table_rows.append(
+            [
+                codigo,
+                ano_emenda,
+                tipo,
+                mun,
+                uf,
+                funcao,
+                subfuncao,
+                programa,
+                acao,
+                f"R$ {emp:,.2f}",
+                f"R$ {liq:,.2f}",
+                f"R$ {pago:,.2f}",
+            ]
+        )
+
+    text = "\n".join(lines)
+
+    return text_result(text, source_url=SOURCE_URL, table=table_rows)
 
 
 if __name__ == "__main__":

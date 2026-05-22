@@ -23,6 +23,10 @@ def register_tools(mcp):
             "Quais funções de governo recebem mais recursos de emendas?",
             "Quais subfunções concentram mais valor empenhado em emendas?",
             "Quem destina emendas parlamentares para Salvador?",
+            "Quais emendas o parlamentar ABILIO SANTANA destinou?",
+            "Quais favorecidos receberam emendas de LULA DA FONTE?",
+            "Quanto é que a favorecido 100 Sports LTDA recebeu com as emendas?",
+            "Para que serviu o dinheiro enviado pelo deputado ABILIO SANTANA?",
         ],
     )
 
@@ -224,6 +228,30 @@ def register_tools(mcp):
         return emendas.list_funcao()
 
     @mcp.tool()
+    def emendas_por_autor(autor: str) -> DataToolOutput:
+        """Returns parliamentary amendments (emendas parlamentares) authored by a given
+        author (nome_do_autor_da_emenda), grouped by year and municipality.
+
+        Shows valor_empenhado, valor_liquidado and valor_pago totals per year/municipio.
+        Uses case-insensitive partial matching for the author name.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+
+        Returns:
+            A summary of parliamentary amendments authored by the given author,
+            grouped by year and municipality, with a table and bar chart of
+            empenhado/liquidado/pago per year.
+            If no results are found, returns a force message with suggestions.
+
+        Examples:
+            - emendas_por_autor(autor="ABILIO SANTANA")
+            - emendas_por_autor(autor="ABEL MESQUITA")
+        """
+        return emendas.emendas_por_autor(autor)
+
+    @mcp.tool()
     def list_subfuncao() -> DataToolOutput:
         """List all available subfuncao (government sub-functions) in the emendas dataset.
 
@@ -236,6 +264,80 @@ def register_tools(mcp):
             - list_subfuncao()
         """
         return emendas.list_subfuncao()
+
+    @mcp.tool()
+    def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+        """Returns the top recipients (favorecidos) of parliamentary amendments from a given
+        author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
+
+        Uses case-insensitive partial matching for the author name.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+            limit: Maximum number of recipients to return. Defaults to 20.
+
+        Returns:
+            A ranking of top recipients of amendment funds from the given author, showing
+            the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
+            number of emendas and total valor_recebido. Includes a table and a horizontal
+            bar chart.
+            If no author is found, returns a force message with suggestions.
+
+        Examples:
+            - favorecidos_por_autor(autor="ABILIO SANTANA")
+            - favorecidos_por_autor(autor="LULA DA FONTE", limit=10)
+        """
+        return emendas.favorecidos_por_autor(autor, limit)
+
+    @mcp.tool()
+    def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
+        """Search for favorecidos (recipients of parliamentary amendments) by approximate name.
+
+        Use this when the exact favorecido name is unknown or misspelled, to find the
+        correct name before calling other tools.
+
+        Args:
+            nome: Name (or partial name) to search for, e.g. "BANCO DO BRASIL"
+                  or "FUNDO MUNICIPAL". Case-insensitive partial match supported.
+            limit: Maximum number of results to return. Defaults to 10.
+
+        Returns:
+            A table of favorecidos matching the (possibly partial) name, each with its
+            natureza_juridica, tipo_favorecido, municipio, UF, number of emendas and
+            total valor_recebido.
+            If no results are found, returns a force message.
+
+        Examples:
+            - buscar_favorecido(nome_favorecido="BANCO DO BRASIL")
+            - buscar_favorecido(nome_favorecido="FUNDO MUNICIPAL DE SAUDE")
+        """
+        return emendas.buscar_favorecido(nome_favorecido, limit)
+
+    @mcp.tool()
+    def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
+        """Returns individual emenda records for a given author with full detail (funcao,
+        subfuncao, programa, acao, municipio, and all valor columns).
+
+        Unlike emendas_por_autor which aggregates by year/municipio, this shows each
+        individual emenda with its complete detail.
+
+        Args:
+            autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
+                   Case-insensitive partial match supported.
+            ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+            limit: Maximum number of emenda records to return. Defaults to 30.
+
+        Returns:
+            A detailed list of individual parliamentary amendments for the given author,
+            with full detail columns. Returns a table of results.
+            If no author is found, returns a force message with suggestions.
+
+        Examples:
+            - detalhe_emendas_por_autor(autor="ABILIO SANTANA")
+            - detalhe_emendas_por_autor(autor="LULA DA FONTE", ano=2025, limit=10)
+        """
+        return emendas.detalhe_emendas_por_autor(autor, ano, limit)
 
 
 def main() -> None:
