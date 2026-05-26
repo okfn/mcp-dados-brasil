@@ -323,100 +323,64 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     # Fetch subfunction breakdown
-    with db_connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT ano_da_emenda,
-                   municipio,
-                   uf,
-                   nome_funcao,
-                   nome_subfuncao,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_empenhado) as total_empenhado,
-                   SUM(valor_liquidado) as total_liquidado,
-                   SUM(valor_pago) as total_pago
-            FROM emendas
-            WHERE municipio = ? AND nome_funcao = ?
-            GROUP BY uf, ano_da_emenda, nome_subfuncao
-            ORDER BY uf, ano_da_emenda, nome_subfuncao
-            """,
-            (municipio_upper, matched_funcao),
-        ).fetchall()
+    df = query_df(
+        """
+        SELECT ano_da_emenda,
+               municipio,
+               uf,
+               nome_funcao,
+               nome_subfuncao,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE municipio = ? AND nome_funcao = ?
+        GROUP BY uf, ano_da_emenda, nome_subfuncao
+        ORDER BY uf, ano_da_emenda, nome_subfuncao
+        """,
+        (municipio_upper, matched_funcao),
+    )
+    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
+        df[col] = df[col].fillna(0.0)
+    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("—")
 
     ufs = ", ".join(uf_list)
-
     lines = [
         f"Emendas parlamentares para {municipio_upper} ({ufs}) — Função: {matched_funcao}:",
         "",
     ]
-    table_rows = [
-        [
-            "Ano",
-            "UF",
-            "Subfunção",
-            "Nº Emendas",
-            "Empenhado (R$)",
-            "Liquidado (R$)",
-            "Pago (R$)",
-        ]
-    ]
+    table_rows = [["Ano", "UF", "Subfunção", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for row in rows:
-        ano = row["ano_da_emenda"]
-        uf = row["uf"]
-        subfuncao = row["nome_subfuncao"] or "—"
-        n = row["num_emendas"]
-        emp = row["total_empenhado"] or 0.0
-        liq = row["total_liquidado"] or 0.0
-        pago = row["total_pago"] or 0.0
+    for _, r in df.iterrows():
+        ano = r["ano_da_emenda"]
+        uf = r["uf"]
+        subfuncao = r["nome_subfuncao"]
+        n = int(r["num_emendas"])
+        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
         lines.append(
             f"  {ano} | {uf} | {subfuncao} | {n} emendas | "
             f"Empenhado: R$ {emp:,.2f} | "
             f"Liquidado: R$ {liq:,.2f} | "
             f"Pago: R$ {pago:,.2f}"
         )
-        table_rows.append(
-            [
-                ano,
-                uf,
-                subfuncao,
-                n,
-                f"R$ {emp:,.2f}",
-                f"R$ {liq:,.2f}",
-                f"R$ {pago:,.2f}",
-            ]
-        )
+        table_rows.append([ano, uf, subfuncao, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
 
     # Aggregate by year for chart (across all subfunções)
-    yearly_data = {}
-    for row in rows:
-        ano = str(row["ano_da_emenda"])
-        if ano not in yearly_data:
-            yearly_data[ano] = {"empenhado": 0.0, "liquidado": 0.0, "pago": 0.0}
-        yearly_data[ano]["empenhado"] += row["total_empenhado"] or 0.0
-        yearly_data[ano]["liquidado"] += row["total_liquidado"] or 0.0
-        yearly_data[ano]["pago"] += row["total_pago"] or 0.0
+    yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
+    yearly = yearly.sort_index()
 
-    chart_labels = sorted(yearly_data.keys())
-    chart_empenhado = [round(yearly_data[y]["empenhado"], 2) for y in chart_labels]
-    chart_liquidado = [round(yearly_data[y]["liquidado"], 2) for y in chart_labels]
-    chart_pago = [round(yearly_data[y]["pago"], 2) for y in chart_labels]
-
-    chart = {
-        "type": "bar",
-        "title": f"Emendas — {municipio_upper} — {matched_funcao}",
-        "labels": chart_labels,
-        "datasets": [
-            {"label": "Empenhado (R$)", "data": chart_empenhado},
-            {"label": "Liquidado (R$)", "data": chart_liquidado},
-            {"label": "Pago (R$)", "data": chart_pago},
+    chart = build_bar_chart(
+        f"Emendas — {municipio_upper} — {matched_funcao}",
+        yearly.index.astype(str).tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
+            {"label": "Liquidado (R$)", "data": yearly["total_liquidado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": yearly["total_pago"].round(2).tolist()},
         ],
-        "beginAtZero": True,
-    }
+    )
 
-    text = "\n".join(lines)
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
 def list_funcao() -> DataToolOutput:
