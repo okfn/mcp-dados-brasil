@@ -510,106 +510,62 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     placeholders = ",".join("?" for _ in matched_authors)
 
     # Fetch yearly aggregates per municipality
-    with db_connect() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT nome_do_autor_da_emenda,
-                   ano_da_emenda,
-                   municipio,
-                   uf,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_empenhado) as total_empenhado,
-                   SUM(valor_liquidado) as total_liquidado,
-                   SUM(valor_pago) as total_pago
-            FROM emendas
-            WHERE nome_do_autor_da_emenda IN ({placeholders})
-            GROUP BY nome_do_autor_da_emenda, ano_da_emenda, municipio, uf
-            ORDER BY nome_do_autor_da_emenda, ano_da_emenda DESC, total_empenhado DESC
-            """,
-            matched_authors,
-        ).fetchall()
-
-    # Also get overall totals per year for the chart
-    with db_connect() as conn:
-        yearly_rows = conn.execute(
-            f"""
-            SELECT ano_da_emenda,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_empenhado) as total_empenhado,
-                   SUM(valor_liquidado) as total_liquidado,
-                   SUM(valor_pago) as total_pago
-            FROM emendas
-            WHERE nome_do_autor_da_emenda IN ({placeholders})
-            GROUP BY ano_da_emenda
-            ORDER BY ano_da_emenda
-            """,
-            matched_authors,
-        ).fetchall()
+    df = query_df(
+        f"""
+        SELECT nome_do_autor_da_emenda,
+               ano_da_emenda,
+               municipio,
+               uf,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE nome_do_autor_da_emenda IN ({placeholders})
+        GROUP BY nome_do_autor_da_emenda, ano_da_emenda, municipio, uf
+        ORDER BY nome_do_autor_da_emenda, ano_da_emenda DESC, total_empenhado DESC
+        """,
+        matched_authors,
+    )
+    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
+        df[col] = df[col].fillna(0.0)
+    df["municipio"] = df["municipio"].fillna("—")
+    df["uf"] = df["uf"].fillna("—")
 
     authors_str = ", ".join(matched_authors)
     lines = [f"Emendas parlamentares de {authors_str}:", ""]
-    table_rows = [
-        [
-            "Autor",
-            "Ano",
-            "Município",
-            "UF",
-            "Nº Emendas",
-            "Empenhado (R$)",
-            "Liquidado (R$)",
-            "Pago (R$)",
-        ]
-    ]
+    table_rows = [["Autor", "Ano", "Município", "UF", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for row in rows:
-        autor_name = row["nome_do_autor_da_emenda"]
-        ano = row["ano_da_emenda"]
-        mun = row["municipio"] or "—"
-        uf = row["uf"] or "—"
-        n = row["num_emendas"]
-        emp = row["total_empenhado"] or 0.0
-        liq = row["total_liquidado"] or 0.0
-        pago = row["total_pago"] or 0.0
+    for _, r in df.iterrows():
+        autor_name = r["nome_do_autor_da_emenda"]
+        ano = r["ano_da_emenda"]
+        mun = r["municipio"]
+        uf = r["uf"]
+        n = int(r["num_emendas"])
+        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
         lines.append(
             f"  {autor_name} | {ano} | {mun}/{uf} | {n} emendas | "
             f"Empenhado: R$ {emp:,.2f} | "
             f"Liquidado: R$ {liq:,.2f} | "
             f"Pago: R$ {pago:,.2f}"
         )
-        table_rows.append(
-            [
-                autor_name,
-                ano,
-                mun,
-                uf,
-                n,
-                f"R$ {emp:,.2f}",
-                f"R$ {liq:,.2f}",
-                f"R$ {pago:,.2f}",
-            ]
-        )
+        table_rows.append([autor_name, ano, mun, uf, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
 
-    # Build chart from yearly aggregates
-    chart_labels = [str(r["ano_da_emenda"]) for r in yearly_rows]
-    chart_empenhado = [round(r["total_empenhado"] or 0.0, 2) for r in yearly_rows]
-    chart_liquidado = [round(r["total_liquidado"] or 0.0, 2) for r in yearly_rows]
-    chart_pago = [round(r["total_pago"] or 0.0, 2) for r in yearly_rows]
+    # Aggregate by year for chart using pandas groupby
+    yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
+    yearly = yearly.sort_index()
 
-    chart = {
-        "type": "bar",
-        "title": f"Emendas Parlamentares — {authors_str}",
-        "labels": chart_labels,
-        "datasets": [
-            {"label": "Empenhado (R$)", "data": chart_empenhado},
-            {"label": "Liquidado (R$)", "data": chart_liquidado},
-            {"label": "Pago (R$)", "data": chart_pago},
+    chart = build_bar_chart(
+        f"Emendas Parlamentares — {authors_str}",
+        yearly.index.astype(str).tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
+            {"label": "Liquidado (R$)", "data": yearly["total_liquidado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": yearly["total_pago"].round(2).tolist()},
         ],
-        "beginAtZero": True,
-    }
+    )
 
-    text = "\n".join(lines)
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
 def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
@@ -633,83 +589,54 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         return err
     placeholders = ",".join("?" for _ in matched_authors)
 
-    with db_connect() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT favorecido,
-                   natureza_juridica,
-                   tipo_favorecido,
-                   municipio_favorecido,
-                   uf_favorecido,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_recebido) as total_recebido
-            FROM emendas_por_favorecido
-            WHERE nome_do_autor_da_emenda IN ({placeholders})
-            GROUP BY favorecido
-            ORDER BY total_recebido DESC
-            LIMIT ?
-            """,
-            (*matched_authors, limit),
-        ).fetchall()
+    df = query_df(
+        f"""
+        SELECT favorecido,
+               natureza_juridica,
+               tipo_favorecido,
+               municipio_favorecido,
+               uf_favorecido,
+               COUNT(*) as num_emendas,
+               SUM(valor_recebido) as total_recebido
+        FROM emendas_por_favorecido
+        WHERE nome_do_autor_da_emenda IN ({placeholders})
+        GROUP BY favorecido
+        ORDER BY total_recebido DESC
+        LIMIT ?
+        """,
+        (*matched_authors, limit),
+    )
+    df["total_recebido"] = df["total_recebido"].fillna(0.0)
+    df["natureza_juridica"] = df["natureza_juridica"].fillna("")
+    df["tipo_favorecido"] = df["tipo_favorecido"].fillna("")
+    df["municipio_favorecido"] = df["municipio_favorecido"].fillna("")
+    df["uf_favorecido"] = df["uf_favorecido"].fillna("")
 
     authors_str = ", ".join(matched_authors)
-    lines = [f"Top {len(rows)} favorecidos das emendas de {authors_str}:", ""]
-    table_rows = [
-        [
-            "#",
-            "Favorecido",
-            "Natureza Jurídica",
-            "Tipo",
-            "Município",
-            "UF",
-            "Nº Emendas",
-            "Total Recebido (R$)",
-        ]
-    ]
-    chart_labels = []
-    chart_recebido = []
+    lines = [f"Top {len(df)} favorecidos das emendas de {authors_str}:", ""]
+    table_rows = [["#", "Favorecido", "Natureza Jurídica", "Tipo", "Município", "UF", "Nº Emendas", "Total Recebido (R$)"]]
 
-    for i, row in enumerate(rows, start=1):
-        favorecido = row["favorecido"]
-        natureza = row["natureza_juridica"] or ""
-        tipo = row["tipo_favorecido"] or ""
-        mun = row["municipio_favorecido"] or ""
-        uf = row["uf_favorecido"] or ""
-        n = row["num_emendas"]
-        total = row["total_recebido"] or 0.0
+    for i, (_, r) in enumerate(df.iterrows(), start=1):
+        favorecido = r["favorecido"]
+        natureza = r["natureza_juridica"]
+        tipo = r["tipo_favorecido"]
+        mun = r["municipio_favorecido"]
+        uf = r["uf_favorecido"]
+        n = int(r["num_emendas"])
+        total = r["total_recebido"]
         lines.append(
             f"  {i}. {favorecido} | {natureza} | {tipo} | "
             f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
         )
-        table_rows.append(
-            [
-                i,
-                favorecido,
-                natureza,
-                tipo,
-                mun,
-                uf,
-                n,
-                f"R$ {total:,.2f}",
-            ]
-        )
-        chart_labels.append(favorecido)
-        chart_recebido.append(round(total, 2))
+        table_rows.append([i, favorecido, natureza, tipo, mun, uf, n, f"R$ {total:,.2f}"])
 
-    text = "\n".join(lines)
-
-    chart = {
-        "type": "bar",
-        "indexAxis": "y",
-        "title": f"Top Favorecidos — Emendas de {authors_str}",
-        "labels": chart_labels,
-        "datasets": [
-            {"label": "Total Recebido (R$)", "data": chart_recebido},
-        ],
-        "beginAtZero": True,
-    }
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    chart = build_bar_chart(
+        f"Top Favorecidos — Emendas de {authors_str}",
+        df["favorecido"].tolist(),
+        [{"label": "Total Recebido (R$)", "data": df["total_recebido"].round(2).tolist()}],
+        index_axis="y",
+    )
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
 def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
@@ -812,87 +739,61 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
 
     params.append(limit)
 
-    with db_connect() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT codigo_da_emenda,
-                   ano_da_emenda,
-                   tipo_de_emenda,
-                   municipio,
-                   uf,
-                   nome_funcao,
-                   nome_subfuncao,
-                   nome_programa,
-                   nome_acao,
-                   valor_empenhado,
-                   valor_liquidado,
-                   valor_pago
-            FROM emendas
-            WHERE nome_do_autor_da_emenda IN ({placeholders}){ano_filter}
-            ORDER BY ano_da_emenda DESC, valor_empenhado DESC
-            LIMIT ?
-            """,
-            params,
-        ).fetchall()
+    df = query_df(
+        f"""
+        SELECT codigo_da_emenda,
+               ano_da_emenda,
+               tipo_de_emenda,
+               municipio,
+               uf,
+               nome_funcao,
+               nome_subfuncao,
+               nome_programa,
+               nome_acao,
+               valor_empenhado,
+               valor_liquidado,
+               valor_pago
+        FROM emendas
+        WHERE nome_do_autor_da_emenda IN ({placeholders}){ano_filter}
+        ORDER BY ano_da_emenda DESC, valor_empenhado DESC
+        LIMIT ?
+        """,
+        params,
+    )
+    for col in ["valor_empenhado", "valor_liquidado", "valor_pago"]:
+        df[col] = df[col].fillna(0.0)
+    df["tipo_de_emenda"] = df["tipo_de_emenda"].fillna("")
+    df["municipio"] = df["municipio"].fillna("—")
+    df["uf"] = df["uf"].fillna("—")
+    df["nome_funcao"] = df["nome_funcao"].fillna("")
+    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("")
+    df["nome_programa"] = df["nome_programa"].fillna("")
+    df["nome_acao"] = df["nome_acao"].fillna("")
 
     authors_str = ", ".join(matched_authors)
     ano_label = f" (ano {ano})" if ano else ""
-    lines = [f"Detalhe das emendas de {authors_str}{ano_label} ({len(rows)} registros):", ""]
-    table_rows = [
-        [
-            "Código",
-            "Ano",
-            "Tipo",
-            "Município",
-            "UF",
-            "Função",
-            "Subfunção",
-            "Programa",
-            "Ação",
-            "Empenhado (R$)",
-            "Liquidado (R$)",
-            "Pago (R$)",
-        ]
-    ]
+    lines = [f"Detalhe das emendas de {authors_str}{ano_label} ({len(df)} registros):", ""]
+    table_rows = [["Código", "Ano", "Tipo", "Município", "UF", "Função", "Subfunção", "Programa", "Ação", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for row in rows:
-        codigo = row["codigo_da_emenda"]
-        ano_emenda = row["ano_da_emenda"]
-        tipo = row["tipo_de_emenda"] or ""
-        mun = row["municipio"] or "—"
-        uf = row["uf"] or "—"
-        funcao = row["nome_funcao"] or ""
-        subfuncao = row["nome_subfuncao"] or ""
-        programa = row["nome_programa"] or ""
-        acao = row["nome_acao"] or ""
-        emp = row["valor_empenhado"] or 0.0
-        liq = row["valor_liquidado"] or 0.0
-        pago = row["valor_pago"] or 0.0
+    for _, r in df.iterrows():
+        codigo = r["codigo_da_emenda"]
+        ano_emenda = r["ano_da_emenda"]
+        tipo = r["tipo_de_emenda"]
+        mun = r["municipio"]
+        uf = r["uf"]
+        funcao = r["nome_funcao"]
+        subfuncao = r["nome_subfuncao"]
+        programa = r["nome_programa"]
+        acao = r["nome_acao"]
+        emp, liq, pago = r["valor_empenhado"], r["valor_liquidado"], r["valor_pago"]
         lines.append(
             f"  {codigo} | {ano_emenda} | {tipo[:40]} | {mun}/{uf} | "
             f"{funcao} / {subfuncao} | {programa[:30]} | {acao[:30]} | "
             f"Empenhado: R$ {emp:,.2f} | Liquidado: R$ {liq:,.2f} | Pago: R$ {pago:,.2f}"
         )
-        table_rows.append(
-            [
-                codigo,
-                ano_emenda,
-                tipo,
-                mun,
-                uf,
-                funcao,
-                subfuncao,
-                programa,
-                acao,
-                f"R$ {emp:,.2f}",
-                f"R$ {liq:,.2f}",
-                f"R$ {pago:,.2f}",
-            ]
-        )
+        table_rows.append([codigo, ano_emenda, tipo, mun, uf, funcao, subfuncao, programa, acao, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
 
-    text = "\n".join(lines)
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows)
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
 
 if __name__ == "__main__":
