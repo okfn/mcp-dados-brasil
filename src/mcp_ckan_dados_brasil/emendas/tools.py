@@ -17,6 +17,21 @@ def query_df(sql: str, params=()) -> pd.DataFrame:
         return pd.read_sql_query(sql, conn, params=params)
 
 
+def build_bar_chart(title: str, labels: list, datasets: list[dict],
+                    index_axis: str | None = None, begin_at_zero: bool = True) -> dict:
+    """Build a chart dict with sensible defaults."""
+    chart = {
+        "type": "bar",
+        "title": title,
+        "labels": labels,
+        "datasets": datasets,
+        "beginAtZero": begin_at_zero,
+    }
+    if index_axis:
+        chart["indexAxis"] = index_axis
+    return chart
+
+
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
     """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
     municipio, grouped by year, from the emendas table.
