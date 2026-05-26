@@ -343,7 +343,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     )
     for col in ["total_empenhado", "total_liquidado", "total_pago"]:
         df[col] = df[col].fillna(0.0)
-    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("—")
+    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("-")
 
     ufs = ", ".join(uf_list)
     lines = [
@@ -529,8 +529,8 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     )
     for col in ["total_empenhado", "total_liquidado", "total_pago"]:
         df[col] = df[col].fillna(0.0)
-    df["municipio"] = df["municipio"].fillna("—")
-    df["uf"] = df["uf"].fillna("—")
+    df["municipio"] = df["municipio"].fillna("-")
+    df["uf"] = df["uf"].fillna("-")
 
     authors_str = ", ".join(matched_authors)
     lines = [f"Emendas parlamentares de {authors_str}:", ""]
@@ -763,8 +763,8 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
     for col in ["valor_empenhado", "valor_liquidado", "valor_pago"]:
         df[col] = df[col].fillna(0.0)
     df["tipo_de_emenda"] = df["tipo_de_emenda"].fillna("")
-    df["municipio"] = df["municipio"].fillna("—")
-    df["uf"] = df["uf"].fillna("—")
+    df["municipio"] = df["municipio"].fillna("-")
+    df["uf"] = df["uf"].fillna("-")
     df["nome_funcao"] = df["nome_funcao"].fillna("")
     df["nome_subfuncao"] = df["nome_subfuncao"].fillna("")
     df["nome_programa"] = df["nome_programa"].fillna("")
