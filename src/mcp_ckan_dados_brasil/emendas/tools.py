@@ -37,7 +37,7 @@ def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, D
 
     Args:
         autor: Author name to search for.
-        table: Table to query — "emendas" or "emendas_por_favorecido".
+        table: Table to query -"emendas" or "emendas_por_favorecido".
 
     Returns:
         (matched_names, None) on success, or (None, error_result) on failure.
@@ -347,7 +347,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
 
     ufs = ", ".join(uf_list)
     lines = [
-        f"Emendas parlamentares para {municipio_upper} ({ufs}) — Função: {matched_funcao}:",
+        f"Emendas parlamentares para {municipio_upper} ({ufs}) -Função: {matched_funcao}:",
         "",
     ]
     table_rows = [["Ano", "UF", "Subfunção", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
@@ -371,7 +371,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     yearly = yearly.sort_index()
 
     chart = build_bar_chart(
-        f"Emendas — {municipio_upper} — {matched_funcao}",
+        f"Emendas -{municipio_upper} -{matched_funcao}",
         yearly.index.astype(str).tolist(),
         [
             {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
@@ -556,7 +556,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     yearly = yearly.sort_index()
 
     chart = build_bar_chart(
-        f"Emendas Parlamentares — {authors_str}",
+        f"Emendas Parlamentares -{authors_str}",
         yearly.index.astype(str).tolist(),
         [
             {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
@@ -631,7 +631,7 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         table_rows.append([i, favorecido, natureza, tipo, mun, uf, n, f"R$ {total:,.2f}"])
 
     chart = build_bar_chart(
-        f"Top Favorecidos — Emendas de {authors_str}",
+        f"Top Favorecidos -Emendas de {authors_str}",
         df["favorecido"].tolist(),
         [{"label": "Total Recebido (R$)", "data": df["total_recebido"].round(2).tolist()}],
         index_axis="y",
