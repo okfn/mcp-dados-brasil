@@ -176,77 +176,50 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     municipio_upper, uf_list, err = validate_municipio(municipio)
     if err:
         return err
-    rows = query_df(
-            """
-            SELECT nome_do_autor_da_emenda,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_empenhado) as total_empenhado,
-                   SUM(valor_liquidado) as total_liquidado,
-                   SUM(valor_pago) as total_pago
-            FROM emendas
-            WHERE municipio = ?
-            GROUP BY nome_do_autor_da_emenda
-            ORDER BY total_empenhado DESC
-            """,
-            (municipio_upper,),
-        ).to_dict("records")
+
+    df = query_df(
+        """
+        SELECT nome_do_autor_da_emenda,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE municipio = ?
+        GROUP BY nome_do_autor_da_emenda
+        ORDER BY total_empenhado DESC
+        """,
+        (municipio_upper,),
+    )
+    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
+        df[col] = df[col].fillna(0.0)
 
     ufs = ", ".join(uf_list)
-
     lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", ""]
-    table_rows = [
-        [
-            "Autor",
-            "Nº Emendas",
-            "Empenhado (R$)",
-            "Liquidado (R$)",
-            "Pago (R$)",
-        ]
-    ]
-    chart_labels = []
-    chart_empenhado = []
-    chart_pago = []
+    table_rows = [["Autor", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for row in rows:
-        autor = row["nome_do_autor_da_emenda"]
-        n = row["num_emendas"]
-        emp = row["total_empenhado"] or 0.0
-        liq = row["total_liquidado"] or 0.0
-        pago = row["total_pago"] or 0.0
+    for _, r in df.iterrows():
+        autor = r["nome_do_autor_da_emenda"]
+        n = int(r["num_emendas"])
+        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
         lines.append(
             f"  {autor} | {n} emendas | "
             f"Empenhado: R$ {emp:,.2f} | "
             f"Liquidado: R$ {liq:,.2f} | "
             f"Pago: R$ {pago:,.2f}"
         )
-        table_rows.append(
-            [
-                autor,
-                n,
-                f"R$ {emp:,.2f}",
-                f"R$ {liq:,.2f}",
-                f"R$ {pago:,.2f}",
-            ]
-        )
-        chart_labels.append(autor)
-        chart_empenhado.append(round(emp, 2))
-        chart_pago.append(round(pago, 2))
+        table_rows.append([autor, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
 
-    text = "\n".join(lines)
-
-    chart = {
-        "type": "bar",
-        "indexAxis": "y",
-        "title": f"Autores de Emendas - {municipio_upper}",
-        "labels": chart_labels,
-        "datasets": [
-            {"label": "Empenhado (R$)", "data": chart_empenhado},
-            {"label": "Pago (R$)", "data": chart_pago},
+    chart = build_bar_chart(
+        f"Autores de Emendas - {municipio_upper}",
+        df["nome_do_autor_da_emenda"].tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": df["total_pago"].round(2).tolist()},
         ],
-        "beginAtZero": True,
-    }
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=[chart])
+        index_axis="y",
+    )
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
 def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
