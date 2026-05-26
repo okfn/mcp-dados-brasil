@@ -32,6 +32,11 @@ def build_bar_chart(title: str, labels: list, datasets: list[dict],
     return chart
 
 
+def _money(x):
+    """Format a number as Brazilian Reais string."""
+    return f"R$ {x:,.2f}"
+
+
 def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, DataToolOutput | None]:
     """Find matching authors via case-insensitive LIKE search.
 
@@ -127,21 +132,17 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     for col in ["total_empenhado", "total_liquidado", "total_pago"]:
         df[col] = df[col].fillna(0.0)
 
-    lines = [f"Emendas parlamentares para {municipio_upper}:", ""]
-    table_rows = [["Ano", "UF", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
+    df_display = pd.DataFrame({
+        "Ano": df["ano_da_emenda"],
+        "UF": df["uf"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
 
-    for _, r in df.iterrows():
-        ano = r["ano_da_emenda"]
-        uf = r["uf"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {ano} | {uf} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([ano, uf, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    lines = [f"Emendas parlamentares para {municipio_upper}:", "", df_display.to_string(index=False)]
 
     # One chart per UF
     charts = []
@@ -195,20 +196,17 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
         df[col] = df[col].fillna(0.0)
 
     ufs = ", ".join(uf_list)
-    lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", ""]
-    table_rows = [["Autor", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for _, r in df.iterrows():
-        autor = r["nome_do_autor_da_emenda"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {autor} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([autor, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    df_display = pd.DataFrame({
+        "Autor": df["nome_do_autor_da_emenda"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", "", df_display.to_string(index=False)]
 
     chart = build_bar_chart(
         f"Autores de Emendas - {municipio_upper}",
@@ -256,20 +254,17 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
     df["natureza_juridica"] = df["natureza_juridica"].fillna("")
     df["tipo_favorecido"] = df["tipo_favorecido"].fillna("")
 
-    lines = [f"Top {len(df)} favorecidos por valor recebido em emendas:", ""]
-    table_rows = [["#", "Favorecido", "Natureza Jurídica", "Tipo", "Nº Emendas", "Total Recebido (R$)"]]
+    df_display = pd.DataFrame({
+        "#": range(1, len(df) + 1),
+        "Favorecido": df["favorecido"],
+        "Natureza Jurídica": df["natureza_juridica"],
+        "Tipo": df["tipo_favorecido"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Total Recebido (R$)": df["total_recebido"].apply(_money),
+    })
 
-    for i, (_, r) in enumerate(df.iterrows(), start=1):
-        favorecido = r["favorecido"]
-        natureza = r["natureza_juridica"]
-        tipo = r["tipo_favorecido"]
-        n = int(r["num_emendas"])
-        total = r["total_recebido"]
-        lines.append(
-            f"  {i}. {favorecido} | {natureza} | {tipo} | "
-            f"{n} emendas | Recebido: R$ {total:,.2f}"
-        )
-        table_rows.append([i, favorecido, natureza, tipo, n, f"R$ {total:,.2f}"])
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    lines = [f"Top {len(df)} favorecidos por valor recebido em emendas:", "", df_display.to_string(index=False)]
 
     chart = build_bar_chart(
         f"Top {len(df)} Favorecidos por Valor Recebido",
@@ -346,25 +341,20 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     df["nome_subfuncao"] = df["nome_subfuncao"].fillna("-")
 
     ufs = ", ".join(uf_list)
-    lines = [
-        f"Emendas parlamentares para {municipio_upper} ({ufs}) -Função: {matched_funcao}:",
-        "",
-    ]
-    table_rows = [["Ano", "UF", "Subfunção", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for _, r in df.iterrows():
-        ano = r["ano_da_emenda"]
-        uf = r["uf"]
-        subfuncao = r["nome_subfuncao"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {ano} | {uf} | {subfuncao} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([ano, uf, subfuncao, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    df_display = pd.DataFrame({
+        "Ano": df["ano_da_emenda"],
+        "UF": df["uf"],
+        "Subfunção": df["nome_subfuncao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Emendas parlamentares para {municipio_upper} ({ufs}) -Função: {matched_funcao}:"
+    lines = [header, "", df_display.to_string(index=False)]
 
     # Aggregate by year for chart (across all subfunções)
     yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
@@ -411,20 +401,17 @@ def list_funcao() -> DataToolOutput:
     for col in ["total_empenhado", "total_liquidado", "total_pago"]:
         df[col] = df[col].fillna(0.0)
 
-    lines = [f"Funções disponíveis nas emendas parlamentares ({len(df)} funções):", ""]
-    table_rows = [["Função", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
+    df_display = pd.DataFrame({
+        "Função": df["nome_funcao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
 
-    for _, r in df.iterrows():
-        funcao = r["nome_funcao"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {funcao} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([funcao, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Funções disponíveis nas emendas parlamentares ({len(df)} funções):"
+    lines = [header, "", df_display.to_string(index=False)]
 
     chart = build_bar_chart(
         "Funções das Emendas Parlamentares por Valor Empenhado",
@@ -463,20 +450,17 @@ def list_subfuncao() -> DataToolOutput:
     for col in ["total_empenhado", "total_liquidado", "total_pago"]:
         df[col] = df[col].fillna(0.0)
 
-    lines = [f"Subfunções disponíveis nas emendas parlamentares ({len(df)} subfunções):", ""]
-    table_rows = [["Subfunção", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
+    df_display = pd.DataFrame({
+        "Subfunção": df["nome_subfuncao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
 
-    for _, r in df.iterrows():
-        subfuncao = r["nome_subfuncao"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {subfuncao} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([subfuncao, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Subfunções disponíveis nas emendas parlamentares ({len(df)} subfunções):"
+    lines = [header, "", df_display.to_string(index=False)]
 
     chart = build_bar_chart(
         "Subfunções das Emendas Parlamentares por Valor Empenhado",
@@ -485,8 +469,6 @@ def list_subfuncao() -> DataToolOutput:
         index_axis="y",
     )
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
-
-
 
 
 def emendas_por_autor(autor: str) -> DataToolOutput:
@@ -533,23 +515,20 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     df["uf"] = df["uf"].fillna("-")
 
     authors_str = ", ".join(matched_authors)
-    lines = [f"Emendas parlamentares de {authors_str}:", ""]
-    table_rows = [["Autor", "Ano", "Município", "UF", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for _, r in df.iterrows():
-        autor_name = r["nome_do_autor_da_emenda"]
-        ano = r["ano_da_emenda"]
-        mun = r["municipio"]
-        uf = r["uf"]
-        n = int(r["num_emendas"])
-        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
-        lines.append(
-            f"  {autor_name} | {ano} | {mun}/{uf} | {n} emendas | "
-            f"Empenhado: R$ {emp:,.2f} | "
-            f"Liquidado: R$ {liq:,.2f} | "
-            f"Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([autor_name, ano, mun, uf, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    df_display = pd.DataFrame({
+        "Autor": df["nome_do_autor_da_emenda"],
+        "Ano": df["ano_da_emenda"],
+        "Município": df["municipio"],
+        "UF": df["uf"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    lines = [f"Emendas parlamentares de {authors_str}:", "", df_display.to_string(index=False)]
 
     # Aggregate by year for chart using pandas groupby
     yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
@@ -613,22 +592,20 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     df["uf_favorecido"] = df["uf_favorecido"].fillna("")
 
     authors_str = ", ".join(matched_authors)
-    lines = [f"Top {len(df)} favorecidos das emendas de {authors_str}:", ""]
-    table_rows = [["#", "Favorecido", "Natureza Jurídica", "Tipo", "Município", "UF", "Nº Emendas", "Total Recebido (R$)"]]
 
-    for i, (_, r) in enumerate(df.iterrows(), start=1):
-        favorecido = r["favorecido"]
-        natureza = r["natureza_juridica"]
-        tipo = r["tipo_favorecido"]
-        mun = r["municipio_favorecido"]
-        uf = r["uf_favorecido"]
-        n = int(r["num_emendas"])
-        total = r["total_recebido"]
-        lines.append(
-            f"  {i}. {favorecido} | {natureza} | {tipo} | "
-            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
-        )
-        table_rows.append([i, favorecido, natureza, tipo, mun, uf, n, f"R$ {total:,.2f}"])
+    df_display = pd.DataFrame({
+        "#": range(1, len(df) + 1),
+        "Favorecido": df["favorecido"],
+        "Natureza Jurídica": df["natureza_juridica"],
+        "Tipo": df["tipo_favorecido"],
+        "Município": df["municipio_favorecido"],
+        "UF": df["uf_favorecido"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Total Recebido (R$)": df["total_recebido"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    lines = [f"Top {len(df)} favorecidos das emendas de {authors_str}:", "", df_display.to_string(index=False)]
 
     chart = build_bar_chart(
         f"Top Favorecidos -Emendas de {authors_str}",
@@ -686,22 +663,20 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
     df["municipio_favorecido"] = df["municipio_favorecido"].fillna("")
     df["uf_favorecido"] = df["uf_favorecido"].fillna("")
 
-    lines = [f"Favorecidos encontrados para '{nome_favorecido}' ({len(df)} resultados):", ""]
-    table_rows = [["#", "Favorecido", "Natureza Jurídica", "Tipo", "Município", "UF", "Nº Emendas", "Total Recebido (R$)"]]
+    df_display = pd.DataFrame({
+        "#": range(1, len(df) + 1),
+        "Favorecido": df["favorecido"],
+        "Natureza Jurídica": df["natureza_juridica"],
+        "Tipo": df["tipo_favorecido"],
+        "Município": df["municipio_favorecido"],
+        "UF": df["uf_favorecido"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Total Recebido (R$)": df["total_recebido"].apply(_money),
+    })
 
-    for i, (_, r) in enumerate(df.iterrows(), start=1):
-        favorecido = r["favorecido"]
-        natureza = r["natureza_juridica"]
-        tipo = r["tipo_favorecido"]
-        mun = r["municipio_favorecido"]
-        uf = r["uf_favorecido"]
-        n = int(r["num_emendas"])
-        total = r["total_recebido"]
-        lines.append(
-            f"  {i}. {favorecido} | {natureza} | {tipo} | "
-            f"{mun}/{uf} | {n} emendas | Recebido: R$ {total:,.2f}"
-        )
-        table_rows.append([i, favorecido, natureza, tipo, mun, uf, n, f"R$ {total:,.2f}"])
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Favorecidos encontrados para '{nome_favorecido}' ({len(df)} resultados):"
+    lines = [header, "", df_display.to_string(index=False)]
 
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
@@ -772,29 +747,28 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
 
     authors_str = ", ".join(matched_authors)
     ano_label = f" (ano {ano})" if ano else ""
-    lines = [f"Detalhe das emendas de {authors_str}{ano_label} ({len(df)} registros):", ""]
-    table_rows = [["Código", "Ano", "Tipo", "Município", "UF", "Função", "Subfunção", "Programa", "Ação", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    for _, r in df.iterrows():
-        codigo = r["codigo_da_emenda"]
-        ano_emenda = r["ano_da_emenda"]
-        tipo = r["tipo_de_emenda"]
-        mun = r["municipio"]
-        uf = r["uf"]
-        funcao = r["nome_funcao"]
-        subfuncao = r["nome_subfuncao"]
-        programa = r["nome_programa"]
-        acao = r["nome_acao"]
-        emp, liq, pago = r["valor_empenhado"], r["valor_liquidado"], r["valor_pago"]
-        lines.append(
-            f"  {codigo} | {ano_emenda} | {tipo[:40]} | {mun}/{uf} | "
-            f"{funcao} / {subfuncao} | {programa[:30]} | {acao[:30]} | "
-            f"Empenhado: R$ {emp:,.2f} | Liquidado: R$ {liq:,.2f} | Pago: R$ {pago:,.2f}"
-        )
-        table_rows.append([codigo, ano_emenda, tipo, mun, uf, funcao, subfuncao, programa, acao, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
+    df_display = pd.DataFrame({
+        "Código": df["codigo_da_emenda"],
+        "Ano": df["ano_da_emenda"],
+        "Tipo": df["tipo_de_emenda"],
+        "Município": df["municipio"],
+        "UF": df["uf"],
+        "Função": df["nome_funcao"],
+        "Subfunção": df["nome_subfuncao"],
+        "Programa": df["nome_programa"],
+        "Ação": df["nome_acao"],
+        "Empenhado (R$)": df["valor_empenhado"].apply(_money),
+        "Liquidado (R$)": df["valor_liquidado"].apply(_money),
+        "Pago (R$)": df["valor_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Detalhe das emendas de {authors_str}{ano_label} ({len(df)} registros):"
+    lines = [header, "", df_display.to_string(index=False)]
 
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
 
 if __name__ == "__main__":
-    print(list_subfuncao())
+    print(emendas_por_municipio("Pilar"))
