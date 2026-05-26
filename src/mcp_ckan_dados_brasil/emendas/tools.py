@@ -1,3 +1,4 @@
+from this import d
 import pandas as pd
 
 from mcp_server import DataToolOutput
@@ -586,10 +587,8 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         (*matched_authors, limit),
     )
     df["total_recebido"] = df["total_recebido"].fillna(0.0)
-    df["natureza_juridica"] = df["natureza_juridica"].fillna("")
-    df["tipo_favorecido"] = df["tipo_favorecido"].fillna("")
-    df["municipio_favorecido"] = df["municipio_favorecido"].fillna("")
-    df["uf_favorecido"] = df["uf_favorecido"].fillna("")
+    for col in ["natureza_juridica", "tipo_favorecido", "municipio_favorecido", "uf_favorecido"]:
+        df[col] = df[col].fillna("")
 
     authors_str = ", ".join(matched_authors)
 
@@ -658,10 +657,8 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     df["total_recebido"] = df["total_recebido"].fillna(0.0)
-    df["natureza_juridica"] = df["natureza_juridica"].fillna("")
-    df["tipo_favorecido"] = df["tipo_favorecido"].fillna("")
-    df["municipio_favorecido"] = df["municipio_favorecido"].fillna("")
-    df["uf_favorecido"] = df["uf_favorecido"].fillna("")
+    for col in ["natureza_juridica", "tipo_favorecido", "municipio_favorecido", "uf_favorecido"]:
+        df[col] = df[col].fillna("")
 
     df_display = pd.DataFrame({
         "#": range(1, len(df) + 1),
@@ -737,13 +734,11 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
     )
     for col in ["valor_empenhado", "valor_liquidado", "valor_pago"]:
         df[col] = df[col].fillna(0.0)
-    df["tipo_de_emenda"] = df["tipo_de_emenda"].fillna("")
     df["municipio"] = df["municipio"].fillna("-")
     df["uf"] = df["uf"].fillna("-")
-    df["nome_funcao"] = df["nome_funcao"].fillna("")
-    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("")
-    df["nome_programa"] = df["nome_programa"].fillna("")
-    df["nome_acao"] = df["nome_acao"].fillna("")
+
+    for col in ["tipo_de_emenda", "nome_funcao", "nome_subfuncao", "nome_programa", "nome_acao"]:
+        df[col] = df[col].fillna("")
 
     authors_str = ", ".join(matched_authors)
     ano_label = f" (ano {ano})" if ano else ""
