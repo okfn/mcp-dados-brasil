@@ -32,6 +32,24 @@ def build_bar_chart(title: str, labels: list, datasets: list[dict],
     return chart
 
 
+def validate_municipio(municipio: str) -> tuple[str | None, list[str] | None, DataToolOutput | None]:
+    """Check that a municipio exists in the emendas table.
+
+    Returns:
+        (municipio_upper, uf_list, None) on success, or
+        (None, None, error_result) on failure.
+    """
+    municipio_upper = municipio.strip().upper()
+    df = query_df(
+        "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
+        (municipio_upper,),
+    )
+    if df.empty:
+        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
+        return None, None, text_result(msg, source_url=SOURCE_URL, force=msg)
+    return municipio_upper, df["uf"].tolist(), None
+
+
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
     """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
     municipio, grouped by year, from the emendas table.
@@ -46,21 +64,12 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
         If the municipality name matches multiple states, returns results for all of them.
         If no results are found, returns a force message.
     """
-    municipio_upper = municipio.strip().upper()
-
-    with db_connect() as conn:
-        uf_rows = conn.execute(
-            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-            (municipio_upper,),
-        ).fetchall()
-
-    if not uf_rows:
-        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
-        return text_result(msg, source_url=SOURCE_URL)
+    municipio_upper, _, err = validate_municipio(municipio)
+    if err:
+        return err
 
     # Fetch yearly aggregates across all matching UFs
-    with db_connect() as conn:
-        rows = conn.execute(
+    df = query_df(
             """
             SELECT ano_da_emenda,
                    municipio,
@@ -75,7 +84,8 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
             ORDER BY uf, ano_da_emenda
             """,
             (municipio_upper,),
-        ).fetchall()
+        )
+    rows = df.to_dict("records")
 
     lines = [f"Emendas parlamentares para {municipio_upper}:", ""]
     table_rows = [
@@ -167,21 +177,10 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
         Includes a table and a horizontal bar chart.
         If no results are found, returns a force message.
     """
-    municipio_upper = municipio.strip().upper()
-
-    # Check that the municipio exists
-    with db_connect() as conn:
-        uf_rows = conn.execute(
-            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-            (municipio_upper,),
-        ).fetchall()
-
-    if not uf_rows:
-        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
-        return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    with db_connect() as conn:
-        rows = conn.execute(
+    municipio_upper, uf_list, err = validate_municipio(municipio)
+    if err:
+        return err
+    rows = query_df(
             """
             SELECT nome_do_autor_da_emenda,
                    COUNT(*) as num_emendas,
@@ -194,9 +193,9 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
             ORDER BY total_empenhado DESC
             """,
             (municipio_upper,),
-        ).fetchall()
+        ).to_dict("records")
 
-    ufs = ", ".join(r["uf"] for r in uf_rows)
+    ufs = ", ".join(uf_list)
 
     lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", ""]
     table_rows = [
@@ -355,28 +354,18 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         If the municipality or function is not found, returns a force message with
         suggestions.
     """
-    municipio_upper = municipio.strip().upper()
+    municipio_upper, uf_list, err = validate_municipio(municipio)
+    if err:
+        return err
     funcao_upper = funcao.strip().upper()
 
-    with db_connect() as conn:
-        # Check that the municipio exists
-        uf_rows = conn.execute(
-            "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-            (municipio_upper,),
-        ).fetchall()
-
-    if not uf_rows:
-        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
-        return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    with db_connect() as conn:
-        # Check available funcoes for this municipio
-        funcao_rows = conn.execute(
+    # Check available funcoes for this municipio
+    funcao_df = query_df(
             "SELECT DISTINCT nome_funcao FROM emendas WHERE municipio = ? ORDER BY nome_funcao",
             (municipio_upper,),
-        ).fetchall()
+        )
 
-    available_funcoes = [r["nome_funcao"] for r in funcao_rows]
+    available_funcoes = funcao_df["nome_funcao"].tolist()
     matched_funcao = None
     for f in available_funcoes:
         if f.upper() == funcao_upper:
@@ -412,7 +401,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
             (municipio_upper, matched_funcao),
         ).fetchall()
 
-    ufs = ", ".join(r["uf"] for r in uf_rows)
+    ufs = ", ".join(uf_list)
 
     lines = [
         f"Emendas parlamentares para {municipio_upper} ({ufs}) — Função: {matched_funcao}:",
