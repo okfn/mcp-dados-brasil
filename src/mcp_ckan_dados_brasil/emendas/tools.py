@@ -1,3 +1,5 @@
+import pandas as pd
+
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
@@ -7,6 +9,12 @@ from mcp_ckan_dados_brasil.emendas.load_db import db_connect
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
 )
+
+
+def query_df(sql: str, params=()) -> pd.DataFrame:
+    """Run a SQL query against the emendas SQLite DB and return a DataFrame."""
+    with db_connect() as conn:
+        return pd.read_sql_query(sql, conn, params=params)
 
 
 def emendas_por_municipio(municipio: str) -> DataToolOutput:
