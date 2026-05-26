@@ -32,6 +32,45 @@ def build_bar_chart(title: str, labels: list, datasets: list[dict],
     return chart
 
 
+def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, DataToolOutput | None]:
+    """Find matching authors via case-insensitive LIKE search.
+
+    Args:
+        autor: Author name to search for.
+        table: Table to query — "emendas" or "emendas_por_favorecido".
+
+    Returns:
+        (matched_names, None) on success, or (None, error_result) on failure.
+    """
+    autor_upper = autor.strip().upper()
+    autor_like = f"%{autor_upper}%"
+    col = "nome_do_autor_da_emenda"
+
+    df = query_df(
+        f"SELECT DISTINCT {col} FROM {table} "
+        f"WHERE UPPER({col}) LIKE ? ORDER BY {col}",
+        (autor_like,),
+    )
+    if not df.empty:
+        return df[col].tolist(), None
+
+    # Suggest similar authors using first 3 chars
+    df2 = query_df(
+        f"SELECT DISTINCT {col} FROM {table} "
+        f"WHERE {col} LIKE ? ORDER BY {col} LIMIT 10",
+        (f"%{autor_upper[:3]}%",),
+    )
+    if not df2.empty:
+        names = ", ".join(df2[col])
+        msg = (
+            f"Nenhum autor encontrado para '{autor}'. "
+            f"Autores sugeridos: {names}"
+        )
+    else:
+        msg = f"Nenhum autor encontrado para '{autor}'."
+    return None, text_result(msg, source_url=SOURCE_URL, force=msg)
+
+
 def validate_municipio(municipio: str) -> tuple[str | None, list[str] | None, DataToolOutput | None]:
     """Check that a municipio exists in the emendas table.
 
@@ -652,36 +691,9 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         If the author name matches multiple authors, returns results for all of them.
         If no results are found, returns a force message with suggestions.
     """
-    autor_upper = autor.strip().upper()
-    autor_like = f"%{autor_upper}%"
-
-    with db_connect() as conn:
-        # Find matching authors
-        author_rows = conn.execute(
-            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
-            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
-            (autor_like,),
-        ).fetchall()
-
-    if not author_rows:
-        # Try to suggest similar authors
-        with db_connect() as conn:
-            suggestions = conn.execute(
-                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
-                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
-                (f"%{autor_upper[:3]}%",),
-            ).fetchall()
-        if suggestions:
-            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
-            msg = (
-                f"Nenhum autor encontrado para '{autor}'. "
-                f"Autores sugeridos: {names}"
-            )
-        else:
-            msg = f"Nenhum autor encontrado para '{autor}'."
-        return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    matched_authors, err = find_author(autor)
+    if err:
+        return err
     placeholders = ",".join("?" for _ in matched_authors)
 
     # Fetch yearly aggregates per municipality
@@ -803,34 +815,9 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         chart.
         If no author is found, returns a force message with suggestions.
     """
-    autor_upper = autor.strip().upper()
-    autor_like = f"%{autor_upper}%"
-
-    with db_connect() as conn:
-        author_rows = conn.execute(
-            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
-            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
-            (autor_like,),
-        ).fetchall()
-
-    if not author_rows:
-        with db_connect() as conn:
-            suggestions = conn.execute(
-                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas_por_favorecido "
-                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
-                (f"%{autor_upper[:3]}%",),
-            ).fetchall()
-        if suggestions:
-            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
-            msg = (
-                f"Nenhum autor encontrado para '{autor}'. "
-                f"Autores sugeridos: {names}"
-            )
-        else:
-            msg = f"Nenhum autor encontrado para '{autor}'."
-        return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    matched_authors, err = find_author(autor, table="emendas_por_favorecido")
+    if err:
+        return err
     placeholders = ",".join("?" for _ in matched_authors)
 
     with db_connect() as conn:
@@ -1019,34 +1006,9 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
         Acao, Empenhado (R$), Liquidado (R$), Pago (R$).
         If no author is found, returns a force message with suggestions.
     """
-    autor_upper = autor.strip().upper()
-    autor_like = f"%{autor_upper}%"
-
-    with db_connect() as conn:
-        author_rows = conn.execute(
-            "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
-            "WHERE UPPER(nome_do_autor_da_emenda) LIKE ? ORDER BY nome_do_autor_da_emenda",
-            (autor_like,),
-        ).fetchall()
-
-    if not author_rows:
-        with db_connect() as conn:
-            suggestions = conn.execute(
-                "SELECT DISTINCT nome_do_autor_da_emenda FROM emendas "
-                "WHERE nome_do_autor_da_emenda LIKE ? ORDER BY nome_do_autor_da_emenda LIMIT 10",
-                (f"%{autor_upper[:3]}%",),
-            ).fetchall()
-        if suggestions:
-            names = ", ".join(r["nome_do_autor_da_emenda"] for r in suggestions)
-            msg = (
-                f"Nenhum autor encontrado para '{autor}'. "
-                f"Autores sugeridos: {names}"
-            )
-        else:
-            msg = f"Nenhum autor encontrado para '{autor}'."
-        return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    matched_authors = [r["nome_do_autor_da_emenda"] for r in author_rows]
+    matched_authors, err = find_author(autor)
+    if err:
+        return err
     placeholders = ",".join("?" for _ in matched_authors)
     params = list(matched_authors)
 
