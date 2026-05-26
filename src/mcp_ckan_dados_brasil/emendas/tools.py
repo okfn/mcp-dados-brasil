@@ -14,7 +14,19 @@ SOURCE_URL = (
 def query_df(sql: str, params=()) -> pd.DataFrame:
     """Run a SQL query against the emendas SQLite DB and return a DataFrame."""
     with db_connect() as conn:
-        return pd.read_sql_query(sql, conn, params=params)
+        df = pd.read_sql_query(sql, conn, params=params)
+
+    # Normalize missing values.
+    for col in df:
+        dt = df[col].dtype
+        if dt in [int, float, 'int64', 'float64']:
+            df[col].fillna(0, inplace=True)
+        if dt in [float, 'float64']:
+            df[col].fillna(0.0, inplace=True)
+        else:
+            df[col].fillna("", inplace=True)
+
+    return df
 
 
 def build_bar_chart(title: str, labels: list, datasets: list[dict],
@@ -129,8 +141,6 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
         """,
         (municipio_upper,),
     )
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
 
     df_display = pd.DataFrame({
         "Ano": df["ano_da_emenda"],
@@ -192,8 +202,6 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
         """,
         (municipio_upper,),
     )
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
 
     ufs = ", ".join(uf_list)
 
@@ -249,10 +257,6 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
     if df.empty:
         msg = "Nenhum favorecido encontrado na base de dados."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    df["total_recebido"] = df["total_recebido"].fillna(0.0)
-    df["natureza_juridica"] = df["natureza_juridica"].fillna("-")
-    df["tipo_favorecido"] = df["tipo_favorecido"].fillna("-")
 
     df_display = pd.DataFrame({
         "#": range(1, len(df) + 1),
@@ -336,9 +340,6 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
         """,
         (municipio_upper, matched_funcao),
     )
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
-    df["nome_subfuncao"] = df["nome_subfuncao"].fillna("-")
 
     ufs = ", ".join(uf_list)
 
@@ -398,9 +399,6 @@ def list_funcao() -> DataToolOutput:
         msg = "Nenhuma função encontrada na base de dados."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
-
     df_display = pd.DataFrame({
         "Função": df["nome_funcao"],
         "Nº Emendas": df["num_emendas"].astype(int),
@@ -446,9 +444,6 @@ def list_subfuncao() -> DataToolOutput:
     if df.empty:
         msg = "Nenhuma subfunção encontrada na base de dados."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
 
     df_display = pd.DataFrame({
         "Subfunção": df["nome_subfuncao"],
@@ -509,10 +504,6 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         """,
         matched_authors,
     )
-    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
-        df[col] = df[col].fillna(0.0)
-    df["municipio"] = df["municipio"].fillna("-")
-    df["uf"] = df["uf"].fillna("-")
 
     authors_str = ", ".join(matched_authors)
 
@@ -585,9 +576,6 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         """,
         (*matched_authors, limit),
     )
-    df["total_recebido"] = df["total_recebido"].fillna(0.0)
-    for col in ["natureza_juridica", "tipo_favorecido", "municipio_favorecido", "uf_favorecido"]:
-        df[col] = df[col].fillna("-")
 
     authors_str = ", ".join(matched_authors)
 
@@ -654,10 +642,6 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
     if df.empty:
         msg = f"Nenhum favorecido encontrado para '{nome_favorecido}'."
         return text_result(msg, source_url=SOURCE_URL, force=msg)
-
-    df["total_recebido"] = df["total_recebido"].fillna(0.0)
-    for col in ["natureza_juridica", "tipo_favorecido", "municipio_favorecido", "uf_favorecido"]:
-        df[col] = df[col].fillna("-")
 
     df_display = pd.DataFrame({
         "#": range(1, len(df) + 1),
@@ -731,11 +715,6 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
         """,
         params,
     )
-    for col in ["valor_empenhado", "valor_liquidado", "valor_pago"]:
-        df[col] = df[col].fillna(0.0)
-
-    for col in ["municipio", "uf", "tipo_de_emenda", "nome_funcao", "nome_subfuncao", "nome_programa", "nome_acao"]:
-        df[col] = df[col].fillna("-")
 
     authors_str = ", ".join(matched_authors)
     ano_label = f" (ano {ano})" if ano else ""
