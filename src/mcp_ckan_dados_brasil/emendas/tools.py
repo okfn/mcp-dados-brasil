@@ -109,97 +109,54 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
 
     # Fetch yearly aggregates across all matching UFs
     df = query_df(
-            """
-            SELECT ano_da_emenda,
-                   municipio,
-                   uf,
-                   COUNT(*) as num_emendas,
-                   SUM(valor_empenhado) as total_empenhado,
-                   SUM(valor_liquidado) as total_liquidado,
-                   SUM(valor_pago) as total_pago
-            FROM emendas
-            WHERE municipio = ?
-            GROUP BY uf, ano_da_emenda
-            ORDER BY uf, ano_da_emenda
-            """,
-            (municipio_upper,),
-        )
-    rows = df.to_dict("records")
+        """
+        SELECT ano_da_emenda,
+               municipio,
+               uf,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE municipio = ?
+        GROUP BY uf, ano_da_emenda
+        ORDER BY uf, ano_da_emenda
+        """,
+        (municipio_upper,),
+    )
+    for col in ["total_empenhado", "total_liquidado", "total_pago"]:
+        df[col] = df[col].fillna(0.0)
 
     lines = [f"Emendas parlamentares para {municipio_upper}:", ""]
-    table_rows = [
-        [
-            "Ano",
-            "UF",
-            "Nº Emendas",
-            "Empenhado (R$)",
-            "Liquidado (R$)",
-            "Pago (R$)",
-        ]
-    ]
+    table_rows = [["Ano", "UF", "Nº Emendas", "Empenhado (R$)", "Liquidado (R$)", "Pago (R$)"]]
 
-    # Group rows by UF for per-UF charts
-    uf_data = {}
-    for row in rows:
-        uf = row["uf"]
-        uf_data.setdefault(uf, []).append(row)
-
-    for row in rows:
-        ano = row["ano_da_emenda"]
-        uf = row["uf"]
-        n = row["num_emendas"]
-        emp = row["total_empenhado"] or 0.0
-        liq = row["total_liquidado"] or 0.0
-        pago = row["total_pago"] or 0.0
+    for _, r in df.iterrows():
+        ano = r["ano_da_emenda"]
+        uf = r["uf"]
+        n = int(r["num_emendas"])
+        emp, liq, pago = r["total_empenhado"], r["total_liquidado"], r["total_pago"]
         lines.append(
             f"  {ano} | {uf} | {n} emendas | "
             f"Empenhado: R$ {emp:,.2f} | "
             f"Liquidado: R$ {liq:,.2f} | "
             f"Pago: R$ {pago:,.2f}"
         )
-        table_rows.append(
-            [
-                ano,
-                uf,
-                n,
-                f"R$ {emp:,.2f}",
-                f"R$ {liq:,.2f}",
-                f"R$ {pago:,.2f}",
-            ]
-        )
+        table_rows.append([ano, uf, n, f"R$ {emp:,.2f}", f"R$ {liq:,.2f}", f"R$ {pago:,.2f}"])
 
     # One chart per UF
     charts = []
-    for uf, uf_rows in uf_data.items():
-        chart_labels = []
-        chart_empenhado = []
-        chart_liquidado = []
-        chart_pago = []
-        for row in uf_rows:
-            emp = row["total_empenhado"] or 0.0
-            liq = row["total_liquidado"] or 0.0
-            pago = row["total_pago"] or 0.0
-            chart_labels.append(str(row["ano_da_emenda"]))
-            chart_empenhado.append(round(emp, 2))
-            chart_liquidado.append(round(liq, 2))
-            chart_pago.append(round(pago, 2))
-        charts.append(
-            {
-                "type": "bar",
-                "title": f"Emendas Parlamentares - {municipio_upper} ({uf})",
-                "labels": chart_labels,
-                "datasets": [
-                    {"label": "Empenhado (R$)", "data": chart_empenhado},
-                    {"label": "Liquidado (R$)", "data": chart_liquidado},
-                    {"label": "Pago (R$)", "data": chart_pago},
-                ],
-                "beginAtZero": True,
-            }
-        )
+    for uf, group in df.groupby("uf"):
+        charts.append(build_bar_chart(
+            f"Emendas Parlamentares - {municipio_upper} ({uf})",
+            group["ano_da_emenda"].astype(str).tolist(),
+            [
+                {"label": "Empenhado (R$)", "data": group["total_empenhado"].round(2).tolist()},
+                {"label": "Liquidado (R$)", "data": group["total_liquidado"].round(2).tolist()},
+                {"label": "Pago (R$)", "data": group["total_pago"].round(2).tolist()},
+            ],
+        ))
 
-    text = "\n".join(lines)
-
-    return text_result(text, source_url=SOURCE_URL, table=table_rows, charts=charts)
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=charts)
 
 
 def quem_envia_emendas(municipio: str) -> DataToolOutput:
