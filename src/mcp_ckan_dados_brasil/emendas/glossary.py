@@ -189,8 +189,7 @@ def glossary(concept: str) -> DataToolOutput:
         return text_result(texto, [SOURCE])
 
     texto = (
-        f"{d['name']} - definição oficial do dicionário de dados, "
-        f"{d['definition']}:\n\n"
+        f"{d['name']}: {d['definition']}:\n\n"
         f"Fonte: {SOURCE})."
     )
     return text_result(texto, [SOURCE])
