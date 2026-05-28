@@ -4,7 +4,7 @@ from mcp_server import DataToolOutput
 from mcp_ckan_dados_brasil.datasets import bolsa_familia
 from mcp_ckan_dados_brasil.datasets import municipios
 from mcp_ckan_dados_brasil.emendas import tools as emendas
-from mcp_ckan_dados_brasil.emendas import glossary
+from mcp_ckan_dados_brasil.emendas import glossary as emendas_glossary
 
 
 def register_tools(mcp):
@@ -358,7 +358,7 @@ def register_tools(mcp):
             - glossary("natureza_juridica")
             - glossary("valor_liquidado")
         """
-        return glossary.glossary(concept)
+        return emendas_glossary.glossary(concept)
 
 
 def main() -> None:
