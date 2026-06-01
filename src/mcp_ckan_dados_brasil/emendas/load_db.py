@@ -3,16 +3,15 @@
 Downloads the dataset from the data portal, unzips it and creates an SQLite dataset.
 """
 
-import sqlite3
-import pandas as pd
 import re
+import sqlite3
 import unicodedata
-
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 from zipfile import ZipFile
 
+import pandas as pd
 from platformdirs import user_data_path
 
 APP_DIR = "mcp-ckan-dados-brasil"

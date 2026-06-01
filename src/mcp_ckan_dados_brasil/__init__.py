@@ -1,8 +1,7 @@
 from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
 
-from mcp_ckan_dados_brasil.datasets import bolsa_familia
-from mcp_ckan_dados_brasil.datasets import municipios
+from mcp_ckan_dados_brasil.datasets import bolsa_familia, municipios
 from mcp_ckan_dados_brasil.emendas import tools as emendas
 
 
