@@ -7,7 +7,7 @@ from mcp_ckan_dados_brasil.emendas.load_db import db_connect
 
 
 SOURCE_URL = (
-    "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares/UNICO"
+    "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares"
 )
 
 
