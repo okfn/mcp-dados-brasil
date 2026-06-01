@@ -9,7 +9,7 @@ from mcp_ckan_dados_brasil.emendas.load_db import db_connect
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares"
 )
-
+SOURCE_FOOTER = "Fonte: Portal da Transparência - Controladoria-Geral da União (https://portaldatransparencia.gov.br)"
 
 def query_df(sql: str, params=()) -> pd.DataFrame:
     """Run a SQL query against the emendas SQLite DB and return a DataFrame."""
@@ -152,7 +152,8 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    lines = [f"Emendas parlamentares para {municipio_upper}:", "", df_display.to_string(index=False)]
+    header = f"Emendas parlamentares para {municipio_upper}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     # One chart per UF
     charts = []
@@ -214,7 +215,8 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    lines = [f"Autores de emendas para {municipio_upper} ({ufs}):", "", df_display.to_string(index=False)]
+    header = f"Autores de emendas para {municipio_upper} ({ufs}):"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
         f"Autores de Emendas - {municipio_upper}",
@@ -268,7 +270,8 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    lines = [f"Top {len(df)} favorecidos por valor recebido em emendas:", "", df_display.to_string(index=False)]
+    header = f"Top {len(df)} favorecidos por valor recebido em emendas:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
         f"Top {len(df)} Favorecidos por Valor Recebido",
@@ -355,7 +358,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Emendas parlamentares para {municipio_upper} ({ufs}) -Função: {matched_funcao}:"
-    lines = [header, "", df_display.to_string(index=False)]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     # Aggregate by year for chart (across all subfunções)
     yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
@@ -409,7 +412,7 @@ def list_funcao() -> DataToolOutput:
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Funções disponíveis nas emendas parlamentares ({len(df)} funções):"
-    lines = [header, "", df_display.to_string(index=False)]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
         "Funções das Emendas Parlamentares por Valor Empenhado",
@@ -455,7 +458,7 @@ def list_subfuncao() -> DataToolOutput:
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Subfunções disponíveis nas emendas parlamentares ({len(df)} subfunções):"
-    lines = [header, "", df_display.to_string(index=False)]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
         "Subfunções das Emendas Parlamentares por Valor Empenhado",
@@ -519,7 +522,8 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    lines = [f"Emendas parlamentares de {authors_str}:", "", df_display.to_string(index=False)]
+    header = f"Emendas parlamentares de {authors_str}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     # Aggregate by year for chart using pandas groupby
     yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
@@ -591,7 +595,8 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    lines = [f"Top {len(df)} favorecidos das emendas de {authors_str}:", "", df_display.to_string(index=False)]
+    header = f"Top {len(df)} favorecidos das emendas de {authors_str}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
         f"Top Favorecidos -Emendas de {authors_str}",
@@ -656,7 +661,7 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Favorecidos encontrados para '{nome_favorecido}' ({len(df)} resultados):"
-    lines = [header, "", df_display.to_string(index=False)]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
@@ -736,7 +741,7 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Detalhe das emendas de {authors_str}{ano_label} ({len(df)} registros):"
-    lines = [header, "", df_display.to_string(index=False)]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
