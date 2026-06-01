@@ -11,6 +11,7 @@ SOURCE_URL = (
 )
 SOURCE_FOOTER = "Fonte: Portal da Transparência - Controladoria-Geral da União (https://portaldatransparencia.gov.br)"
 
+
 def query_df(sql: str, params=()) -> pd.DataFrame:
     """Run a SQL query against the emendas SQLite DB and return a DataFrame."""
     with db_connect() as conn:
