@@ -4,6 +4,7 @@ from mcp_server import DataToolOutput
 from mcp_ckan_dados_brasil.datasets import bolsa_familia
 from mcp_ckan_dados_brasil.datasets import municipios
 from mcp_ckan_dados_brasil.emendas import tools as emendas
+from mcp_ckan_dados_brasil.emendas import glossary as emendas_glossary
 
 
 def register_tools(mcp):
@@ -338,6 +339,26 @@ def register_tools(mcp):
             - detalhe_emendas_por_autor(autor="LULA DA FONTE", ano=2025, limit=10)
         """
         return emendas.detalhe_emendas_por_autor(autor, ano, limit)
+
+    @mcp.tool()
+    def glossary(concept: str) -> DataToolOutput:
+        """Returns the official definition of a concept.
+
+        This tool contains all the relevant concepts and metadata required to understand
+        the information returned by the other tools.
+
+        Args:
+            concept: The key of a specific term or concept, e.g. "natureza_juridica" or "valor_liquidado".
+
+        Returns:
+            A definition of the concept. If no concept is found, it returns a list of all
+            available concepts.
+
+        Examples:
+            - glossary("natureza_juridica")
+            - glossary("valor_liquidado")
+        """
+        return emendas_glossary.glossary(concept)
 
 
 def main() -> None:
