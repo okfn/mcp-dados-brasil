@@ -14,7 +14,7 @@ from zipfile import ZipFile
 import pandas as pd
 from platformdirs import user_data_path
 
-APP_DIR = "mcp-ckan-dados-brasil"
+APP_DIR = "mcp-dados-brasil"
 EMENDAS_CSV_FILES = {
     "EmendasParlamentares_PorFavorecido.csv": "emendas_por_favorecido",
     "EmendasParlamentares.csv": "emendas",
@@ -75,7 +75,7 @@ def _make_sqlite_safe(columns: pd.Index) -> pd.Index:
 def main():
     data_path = get_data_dir()
 
-    # Here __package__ references: mcp_ckan_dados_brasil.emendas
+    # Here __package__ references: mcp_dados_brasil.emendas
     with ZipFile(resources.open_binary(__package__, 'data/EmendasParlamentares.zip')) as zip_file:
         for filename in EMENDAS_CSV_FILES:
             zip_file.extract(filename, data_path)

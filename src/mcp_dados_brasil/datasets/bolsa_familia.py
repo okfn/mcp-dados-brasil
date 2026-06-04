@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
-from mcp_ckan_dados_brasil.datasets.municipios import resolve_municipio, buscar_similares
+from mcp_dados_brasil.datasets.municipios import resolve_municipio, buscar_similares
 
 
 log = logging.getLogger(__name__)

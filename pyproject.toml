@@ -1,5 +1,5 @@
 [project]
-name = "mcp-ckan-dados-brasil"
+name = "mcp-dados-brasil"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -20,11 +20,11 @@ dev = [
 ]
 
 [project.scripts]
-mcp-ckan-dados-brasil = "mcp_ckan_dados_brasil:main"
-load-emendas-db = "mcp_ckan_dados_brasil.emendas.load_db:main"
+mcp-dados-brasil = "mcp_dados_brasil:main"
+load-emendas-db = "mcp_dados_brasil.emendas.load_db:main"
 
 [project.entry-points."mcp_server"]
-mcp-dados-brasil = "mcp_ckan_dados_brasil:register_tools"
+mcp-dados-brasil = "mcp_dados_brasil:register_tools"
 
 [project.urls]
 Homepage = "https://github.com/okfn/mcp-dados-brasil"
