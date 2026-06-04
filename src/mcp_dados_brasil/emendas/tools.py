@@ -2,7 +2,7 @@ import pandas as pd
 from mcp_server import DataToolOutput
 from mcp_server.results import text_result
 
-from mcp_ckan_dados_brasil.emendas.load_db import db_connect
+from mcp_dados_brasil.emendas.load_db import db_connect
 
 SOURCE_URL = (
     "https://portaldatransparencia.gov.br/download-de-dados/emendas-parlamentares"

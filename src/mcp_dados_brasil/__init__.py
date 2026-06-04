@@ -1,9 +1,9 @@
 from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
 
-from mcp_ckan_dados_brasil.datasets import bolsa_familia, municipios
-from mcp_ckan_dados_brasil.emendas import tools as emendas
-from mcp_ckan_dados_brasil.emendas import glossary as emendas_glossary
+from mcp_dados_brasil.datasets import bolsa_familia, municipios
+from mcp_dados_brasil.emendas import tools as emendas
+from mcp_dados_brasil.emendas import glossary as emendas_glossary
 
 
 def register_tools(mcp):
@@ -361,4 +361,4 @@ def register_tools(mcp):
 
 
 def main() -> None:
-    print("Hello from mcp-ckan-dados-brasil")
+    print("Hello from mcp-dados-brasil")
