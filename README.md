@@ -1,11 +1,11 @@
 # MCP dados Brasil
 
 This repository contains declarative dataset definitions for the
-[Brasil open data portal](https://dados.gov.br).  
+[Brasil open data portal](https://dados.gov.br).
 
-**Note:** This is a work in progress at Alpha stage.  
+**Note:** This is a work in progress at Alpha stage.
 
-This ready to run with the OKFN MCP server defined at https://github.com/okfn/mcp-ckan.  
+This ready to run with the OKFN MCP server defined at https://github.com/okfn/mcp-server.
 
 ## Add this to a OKFN MCP server
 
@@ -32,7 +32,7 @@ Each `.yaml` file defines a dataset and its MCP tools declaratively. No Python c
 ## Adding a new dataset
 
 1. Create a new `.yaml` file in `datasets/`
-2. Set the proper `engine`. Read about them at https://github.com/okfn/mcp-ckan/tree/main/src/mcp_server/engines
+2. Set the proper `engine`. Read about them at https://github.com/okfn/mcp-server/tree/main/src/mcp_server/engines
 3. Define the `dataset` metadata and `source` (CSV URL)
 4. Define `tools` with their parameters and logic
 5. Push to this repo and re-fetch on the MCP server
