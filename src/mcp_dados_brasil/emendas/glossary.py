@@ -51,6 +51,10 @@ GLOSSARY = {
         "definition": (
             "Atributo do Plano de Trabalho que indica, durante a execução da despesa, a "
             "região onde a despesa ocorre."
+            "Para municípios, o formato é 'NOME DO MUNICÍPIO - UF' (ex: 'PILAR - PB'). "
+            "Para aplicações em nível estadual, o formato é 'NOME DO ESTADO (UF)' (ex: 'SERGIPE (UF)'). "
+            "Este campo está sempre preenchido, ao contrário do campo 'municipio' que pode estar em branco "
+            "para aplicações de escopo estadual ou regional."
             ),
     },
     "codigo_municipio_ibge": {
