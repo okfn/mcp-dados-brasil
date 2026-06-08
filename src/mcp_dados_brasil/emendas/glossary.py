@@ -46,21 +46,15 @@ GLOSSARY = {
             "Financeira do Governo Federal - SIAFI."
             ),
     },
-    "localidade_de_aplicacao_do_recurso": {
-        "name": "Localidade de Aplicação do Recurso",
-        "definition": (
-            "Localidade onde o recurso da emenda parlamentar será aplicado. "
-            "Para municípios, o formato é 'NOME DO MUNICÍPIO - UF' (ex: 'PILAR - PB'). "
-            "Para aplicações em nível estadual, o formato é 'NOME DO ESTADO (UF)' (ex: 'SERGIPE (UF)'). "
-            "Este campo está sempre preenchido, ao contrário do campo 'municipio' que pode estar em branco "
-            "para aplicações de escopo estadual ou regional."
-            ),
-    },
     "localidade_do_gasto": {
         "name": "Localidade do Gasto",
         "definition": (
             "Atributo do Plano de Trabalho que indica, durante a execução da despesa, a "
             "região onde a despesa ocorre."
+            "Para municípios, o formato é 'NOME DO MUNICÍPIO - UF' (ex: 'PILAR - PB'). "
+            "Para aplicações em nível estadual, o formato é 'NOME DO ESTADO (UF)' (ex: 'SERGIPE (UF)'). "
+            "Este campo está sempre preenchido, ao contrário do campo 'municipio' que pode estar em branco "
+            "para aplicações de escopo estadual ou regional."
             ),
     },
     "codigo_municipio_ibge": {
