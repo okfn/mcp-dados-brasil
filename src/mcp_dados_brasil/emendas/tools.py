@@ -48,6 +48,18 @@ def _money(x):
     return f"R$ {x:,.2f}"
 
 
+def _emendas_url(codigo_da_emenda: str) -> str:
+    """Returns the url for the emenda.
+
+    Code is an integer like 202644840006 but some rows have a "Sem informação" value.
+    """
+    try:
+        _parsed = int(codigo_da_emenda)
+        return f"https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda={_parsed}"
+    except ValueError:
+        return ""
+
+
 def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, DataToolOutput | None]:
     """Find matching authors via case-insensitive LIKE search.
 
@@ -736,6 +748,7 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
         "Empenhado (R$)": df["valor_empenhado"].apply(_money),
         "Liquidado (R$)": df["valor_liquidado"].apply(_money),
         "Pago (R$)": df["valor_pago"].apply(_money),
+        "URL": df["codigo_da_emenda"].apply(_emendas_url),
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
@@ -746,4 +759,4 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
 
 
 if __name__ == "__main__":
-    print(emendas_por_municipio("Pilar"))
+    print(detalhe_emendas_por_autor("ABILIO SANTANA"))
