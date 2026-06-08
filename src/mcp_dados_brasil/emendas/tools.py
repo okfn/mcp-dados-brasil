@@ -342,7 +342,12 @@ def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOut
 
     # Check available funcoes for these localidades
     funcao_df = query_df(
-        f"SELECT DISTINCT nome_funcao FROM emendas WHERE localidade_de_aplicacao_do_recurso IN ({placeholders}) ORDER BY nome_funcao",
+        f"""
+        SELECT DISTINCT nome_funcao
+        FROM emendas
+        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
+        ORDER BY nome_funcao
+        """,
         matched_localidades,
     )
 
