@@ -19,11 +19,11 @@ def query_df(sql: str, params=()) -> pd.DataFrame:
     for col in df:
         dt = df[col].dtype
         if dt in [int, float, 'int64', 'float64']:
-            df[col].fillna(0, inplace=True)
+            df[col] = df[col].fillna(0)
         if dt in [float, 'float64']:
-            df[col].fillna(0.0, inplace=True)
+            df[col] = df[col].fillna(0.0)
         else:
-            df[col].fillna("", inplace=True)
+            df[col] = df[col].fillna("")
 
     return df
 
