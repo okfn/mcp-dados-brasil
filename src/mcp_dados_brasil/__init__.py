@@ -13,11 +13,11 @@ def register_tools(mcp):
             "Ferramentas sobre dados abertos do Brasil (https://)dados.gov.br)"
         ),
         sample_questions=[
-            "Quais são as emendas parlamentares para o município de Pilar?",
+            "Quais são as emendas parlamentares para Pilar?",
             "Quem são os parlamentares que mais enviam emendas para São Paulo?",
             "Top 10 favorecidos das emendas parlamentares",
             "Top 20 favorecidos das emendas parlamentares",
-            "Emendas para Saúde no município de São Paulo",
+            "Emendas para Saúde em São Paulo",
             "Quanto Belo Horizonte recebeu em emendas de Educação?",
             "Emendas para Assistência Social em Manaus",
             "Quais funções de governo recebem mais recursos de emendas?",
@@ -125,46 +125,49 @@ def register_tools(mcp):
         )
 
     @mcp.tool()
-    def emendas_por_municipio(municipio: str) -> DataToolOutput:
-        """Get parliamentary amendments (emendas parlamentares) for a given municipality,
-        grouped by year.
+    def emendas_por_localidade(localidade: str) -> DataToolOutput:
+        """Get parliamentary amendments (emendas parlamentares) for a given location
+        (localidade_de_aplicacao_do_recurso), grouped by year.
 
         Shows valor_empenhado, valor_liquidado and valor_pago totals per year.
-        If the municipality name matches multiple states, returns results for all of them.
+        If the location name matches multiple entries, returns results for all of them.
 
         Args:
-            municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+            localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                        Supports partial matching at the start of the name.
 
         Returns:
-            A summary of parliamentary amendments for the given municipality, grouped by
+            A summary of parliamentary amendments for the given location, grouped by
             year, with a table and bar chart of empenhado/liquidado/pago per year.
             If no results are found, returns a force message.
 
         Examples:
-            - emendas_por_municipio(municipio="Pilar")
-            - emendas_por_municipio(municipio="São Paulo")
+            - emendas_por_localidade(localidade="Pilar")
+            - emendas_por_localidade(localidade="São Paulo")
         """
-        return emendas.emendas_por_municipio(municipio)
+        return emendas.emendas_por_localidade(localidade)
 
     @mcp.tool()
-    def quem_envia_emendas(municipio: str) -> DataToolOutput:
+    def quem_envia_emendas(localidade: str) -> DataToolOutput:
         """Returns a ranking of parliamentary amendment authors (nome_do_autor_da_emenda)
-        for a given municipality, sorted by total valor_empenhado descending.
+        for a given location (localidade_de_aplicacao_do_recurso), sorted by total
+        valor_empenhado descending.
 
         Args:
-            municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+            localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                        Supports partial matching at the start of the name.
 
         Returns:
-            A ranking of amendment authors for the given municipality, showing how many
+            A ranking of amendment authors for the given location, showing how many
             emendas each authored and the total empenhado/liquidado/pago. Includes a table
             and a horizontal bar chart.
             If no results are found, returns a force message.
 
         Examples:
-            - quem_envia_emendas(municipio="Pilar")
-            - quem_envia_emendas(municipio="São Paulo")
+            - quem_envia_emendas(localidade="Pilar")
+            - quem_envia_emendas(localidade="São Paulo")
         """
-        return emendas.quem_envia_emendas(municipio)
+        return emendas.quem_envia_emendas(localidade)
 
     @mcp.tool()
     def top_favorecidos_das_emendas(limit: int) -> DataToolOutput:
@@ -186,36 +189,38 @@ def register_tools(mcp):
         return emendas.top_favorecidos_das_emendas(limit)
 
     @mcp.tool()
-    def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutput:
-        """Returns the amounts of parliamentary amendments for a given municipality filtered
-        by a specific funcao (government function), grouped by subfuncao and year.
+    def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOutput:
+        """Returns the amounts of parliamentary amendments for a given location
+        (localidade_de_aplicacao_do_recurso) filtered by a specific funcao (government
+        function), grouped by subfuncao and year.
 
         Use list_funcao() to discover available funcao values.
 
         Args:
-            municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+            localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                        Supports partial matching at the start of the name.
             funcao: Government function name to filter by, e.g. "Saúde", "Educação",
                     "Assistência Social". Case-insensitive match.
 
         Returns:
-            A breakdown of parliamentary amendments for the given municipality and function,
+            A breakdown of parliamentary amendments for the given location and function,
             grouped by subfunction and year. Shows valor_empenhado, valor_liquidado and
             valor_pago totals.
-            If the municipality or function is not found, returns a force message with
+            If the location or function is not found, returns a force message with
             suggestions of available funcoes.
 
         Examples:
-            - emendas_a_municipio_por_funcao(municipio="Pilar", funcao="Saúde")
-            - emendas_a_municipio_por_funcao(municipio="São Paulo", funcao="Educação")
+            - emendas_por_localidade_e_funcao(localidade="Pilar", funcao="Saúde")
+            - emendas_por_localidade_e_funcao(localidade="São Paulo", funcao="Educação")
         """
-        return emendas.emendas_a_municipio_por_funcao(municipio, funcao)
+        return emendas.emendas_por_localidade_e_funcao(localidade, funcao)
 
     @mcp.tool()
     def list_funcao() -> DataToolOutput:
         """List all available funcao (government functions) in the emendas dataset.
 
         Use this to discover which funcao values can be passed to
-        emendas_a_municipio_por_funcao().
+        emendas_por_localidade_e_funcao().
 
         Returns:
             A table of all distinct funcao values in the parliamentary amendments dataset,

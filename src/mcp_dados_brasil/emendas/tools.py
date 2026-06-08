@@ -99,63 +99,85 @@ def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, D
     return None, text_result(msg, source_url=SOURCE_URL, force=msg)
 
 
-def validate_municipio(municipio: str) -> tuple[str | None, list[str] | None, DataToolOutput | None]:
-    """Check that a municipio exists in the emendas table.
+def validate_localidade(localidade: str) -> tuple[list[str] | None, DataToolOutput | None]:
+    """Check that a localidade_de_aplicacao_do_recurso exists in the emendas table.
+
+    Supports partial matching: passing "Pilar" will match "PILAR - PB", "PILAR - AL", etc.
 
     Returns:
-        (municipio_upper, uf_list, None) on success, or
-        (None, None, error_result) on failure.
+        (matched_localidades, None) on success, or
+        (None, error_result) on failure.
     """
-    municipio_upper = municipio.strip().upper()
+    localidade_upper = localidade.strip().upper()
+    localidade_like = f"{localidade_upper}%"
+    col = "localidade_de_aplicacao_do_recurso"
+
     df = query_df(
-        "SELECT DISTINCT uf FROM emendas WHERE municipio = ? ORDER BY uf",
-        (municipio_upper,),
+        f"SELECT DISTINCT {col} FROM emendas WHERE UPPER({col}) LIKE ? ORDER BY {col}",
+        (localidade_like,),
     )
-    if df.empty:
-        msg = f"Nenhuma emenda encontrada para o município '{municipio}'."
-        return None, None, text_result(msg, source_url=SOURCE_URL, force=msg)
-    return municipio_upper, df["uf"].tolist(), None
+    if not df.empty:
+        return df[col].tolist(), None
+
+    # Try broader match (contains)
+    localidade_like = f"%{localidade_upper}%"
+    df = query_df(
+        f"SELECT DISTINCT {col} FROM emendas WHERE UPPER({col}) LIKE ? ORDER BY {col} LIMIT 10",
+        (localidade_like,),
+    )
+    if not df.empty:
+        suggestions = ", ".join(df[col])
+        msg = (
+            f"Nenhuma localidade exata encontrada para '{localidade}'. "
+            f"Localidades sugeridas: {suggestions}"
+        )
+    else:
+        msg = f"Nenhuma emenda encontrada para a localidade '{localidade}'."
+    return None, text_result(msg, source_url=SOURCE_URL, force=msg)
 
 
-def emendas_por_municipio(municipio: str) -> DataToolOutput:
+def emendas_por_localidade(localidade: str) -> DataToolOutput:
     """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
-    municipio, grouped by year, from the emendas table.
+    localidade_de_aplicacao_do_recurso, grouped by year, from the emendas table.
 
     Args:
-        municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+        localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                    Supports partial matching at the start of the name.
 
     Returns:
         A summary of parliamentary amendments (emendas parlamentares) for the given
-        municipality, grouped by year. Shows valor_empenhado, valor_liquidado and
+        location, grouped by year. Shows valor_empenhado, valor_liquidado and
         valor_pago totals per year.
-        If the municipality name matches multiple states, returns results for all of them.
+        If the location name matches multiple entries, returns results for all of them.
         If no results are found, returns a force message.
     """
-    municipio_upper, _, err = validate_municipio(municipio)
+    matched_localidades, err = validate_localidade(localidade)
     if err:
         return err
+    placeholders = ",".join("?" for _ in matched_localidades)
 
-    # Fetch yearly aggregates across all matching UFs
+    # Fetch yearly aggregates across all matching localidades
     df = query_df(
-        """
+        f"""
         SELECT ano_da_emenda,
-               municipio,
-               uf,
+               localidade_de_aplicacao_do_recurso,
                COUNT(*) as num_emendas,
                SUM(valor_empenhado) as total_empenhado,
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE municipio = ?
-        GROUP BY uf, ano_da_emenda
-        ORDER BY uf, ano_da_emenda
+        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
+        GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda
+        ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda
         """,
-        (municipio_upper,),
+        matched_localidades,
     )
+
+    localidades_str = ", ".join(matched_localidades)
 
     df_display = pd.DataFrame({
         "Ano": df["ano_da_emenda"],
-        "UF": df["uf"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
         "Nº Emendas": df["num_emendas"].astype(int),
         "Empenhado (R$)": df["total_empenhado"].apply(_money),
         "Liquidado (R$)": df["total_liquidado"].apply(_money),
@@ -163,14 +185,14 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    header = f"Emendas parlamentares para {municipio_upper}:"
+    header = f"Emendas parlamentares para {localidades_str}:"
     lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
-    # One chart per UF
+    # One chart per localidade
     charts = []
-    for uf, group in df.groupby("uf"):
+    for loc, group in df.groupby("localidade_de_aplicacao_do_recurso"):
         charts.append(build_bar_chart(
-            f"Emendas Parlamentares - {municipio_upper} ({uf})",
+            f"Emendas Parlamentares - {loc}",
             group["ano_da_emenda"].astype(str).tolist(),
             [
                 {"label": "Empenhado (R$)", "data": group["total_empenhado"].round(2).tolist()},
@@ -182,40 +204,42 @@ def emendas_por_municipio(municipio: str) -> DataToolOutput:
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=charts)
 
 
-def quem_envia_emendas(municipio: str) -> DataToolOutput:
+def quem_envia_emendas(localidade: str) -> DataToolOutput:
     """Returns a list of emenda authors (nome_do_autor_da_emenda) with the total
-    valor_empenhado, valor_liquidado and valor_pago for the given municipio,
+    valor_empenhado, valor_liquidado and valor_pago for the given localidade,
     sorted by total empenhado descending.
 
     Args:
-        municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+        localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                    Supports partial matching at the start of the name.
 
     Returns:
-        A ranking of parliamentary amendment authors for the given municipality,
+        A ranking of parliamentary amendment authors for the given location,
         showing how many emendas each authored and the total empenhado/liquidado/pago.
         Includes a table and a horizontal bar chart.
         If no results are found, returns a force message.
     """
-    municipio_upper, uf_list, err = validate_municipio(municipio)
+    matched_localidades, err = validate_localidade(localidade)
     if err:
         return err
+    placeholders = ",".join("?" for _ in matched_localidades)
 
     df = query_df(
-        """
+        f"""
         SELECT nome_do_autor_da_emenda,
                COUNT(*) as num_emendas,
                SUM(valor_empenhado) as total_empenhado,
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE municipio = ?
+        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
         GROUP BY nome_do_autor_da_emenda
         ORDER BY total_empenhado DESC
         """,
-        (municipio_upper,),
+        matched_localidades,
     )
 
-    ufs = ", ".join(uf_list)
+    localidades_str = ", ".join(matched_localidades)
 
     df_display = pd.DataFrame({
         "Autor": df["nome_do_autor_da_emenda"],
@@ -226,11 +250,11 @@ def quem_envia_emendas(municipio: str) -> DataToolOutput:
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    header = f"Autores de emendas para {municipio_upper} ({ufs}):"
+    header = f"Autores de emendas para {localidades_str}:"
     lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     chart = build_bar_chart(
-        f"Autores de Emendas - {municipio_upper}",
+        f"Autores de Emendas - {localidades_str}",
         df["nome_do_autor_da_emenda"].tolist(),
         [
             {"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()},
@@ -293,32 +317,34 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
-def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutput:
-    """Returns the amounts of emendas for a given municipality filtered by a specific
+def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOutput:
+    """Returns the amounts of emendas for a given location filtered by a specific
     funcao (government function), grouped by subfuncao and year.
 
     Args:
-        municipio: Municipality name to filter by, e.g. "Pilar" or "São Paulo".
+        localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                    Supports partial matching at the start of the name.
         funcao: Government function name to filter by, e.g. "Saúde", "Educação",
                 "Assistência Social". Case-insensitive match.
 
     Returns:
         A breakdown of parliamentary amendments (emendas parlamentares) for the given
-        municipality and function, grouped by subfunction and year. Shows
+        location and function, grouped by subfunction and year. Shows
         valor_empenhado, valor_liquidado and valor_pago totals.
-        If the municipality or function is not found, returns a force message with
+        If the location or function is not found, returns a force message with
         suggestions.
     """
-    municipio_upper, uf_list, err = validate_municipio(municipio)
+    matched_localidades, err = validate_localidade(localidade)
     if err:
         return err
     funcao_upper = funcao.strip().upper()
+    placeholders = ",".join("?" for _ in matched_localidades)
 
-    # Check available funcoes for this municipio
+    # Check available funcoes for these localidades
     funcao_df = query_df(
-            "SELECT DISTINCT nome_funcao FROM emendas WHERE municipio = ? ORDER BY nome_funcao",
-            (municipio_upper,),
-        )
+        f"SELECT DISTINCT nome_funcao FROM emendas WHERE localidade_de_aplicacao_do_recurso IN ({placeholders}) ORDER BY nome_funcao",
+        matched_localidades,
+    )
 
     available_funcoes = funcao_df["nome_funcao"].tolist()
     matched_funcao = None
@@ -327,20 +353,21 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
             matched_funcao = f
             break
 
+    localidades_str = ", ".join(matched_localidades)
+
     if matched_funcao is None:
         funcoes_list = ", ".join(available_funcoes)
         msg = (
-            f"Função '{funcao}' não encontrada para o município '{municipio}'. "
+            f"Função '{funcao}' não encontrada para a localidade '{localidades_str}'. "
             f"Funções disponíveis: {funcoes_list}"
         )
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     # Fetch subfunction breakdown
     df = query_df(
-        """
+        f"""
         SELECT ano_da_emenda,
-               municipio,
-               uf,
+               localidade_de_aplicacao_do_recurso,
                nome_funcao,
                nome_subfuncao,
                COUNT(*) as num_emendas,
@@ -348,18 +375,16 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE municipio = ? AND nome_funcao = ?
-        GROUP BY uf, ano_da_emenda, nome_subfuncao
-        ORDER BY uf, ano_da_emenda, nome_subfuncao
+        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders}) AND nome_funcao = ?
+        GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda, nome_subfuncao
+        ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda, nome_subfuncao
         """,
-        (municipio_upper, matched_funcao),
+        (*matched_localidades, matched_funcao),
     )
-
-    ufs = ", ".join(uf_list)
 
     df_display = pd.DataFrame({
         "Ano": df["ano_da_emenda"],
-        "UF": df["uf"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
         "Subfunção": df["nome_subfuncao"],
         "Nº Emendas": df["num_emendas"].astype(int),
         "Empenhado (R$)": df["total_empenhado"].apply(_money),
@@ -368,7 +393,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     })
 
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    header = f"Emendas parlamentares para {municipio_upper} ({ufs}) -Função: {matched_funcao}:"
+    header = f"Emendas parlamentares para {localidades_str} - Função: {matched_funcao}:"
     lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
     # Aggregate by year for chart (across all subfunções)
@@ -376,7 +401,7 @@ def emendas_a_municipio_por_funcao(municipio: str, funcao: str) -> DataToolOutpu
     yearly = yearly.sort_index()
 
     chart = build_bar_chart(
-        f"Emendas -{municipio_upper} -{matched_funcao}",
+        f"Emendas - {localidades_str} - {matched_funcao}",
         yearly.index.astype(str).tolist(),
         [
             {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
@@ -500,20 +525,19 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         return err
     placeholders = ",".join("?" for _ in matched_authors)
 
-    # Fetch yearly aggregates per municipality
+    # Fetch yearly aggregates per localidade
     df = query_df(
         f"""
         SELECT nome_do_autor_da_emenda,
                ano_da_emenda,
-               municipio,
-               uf,
+               localidade_de_aplicacao_do_recurso,
                COUNT(*) as num_emendas,
                SUM(valor_empenhado) as total_empenhado,
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
         WHERE nome_do_autor_da_emenda IN ({placeholders})
-        GROUP BY nome_do_autor_da_emenda, ano_da_emenda, municipio, uf
+        GROUP BY nome_do_autor_da_emenda, ano_da_emenda, localidade_de_aplicacao_do_recurso
         ORDER BY nome_do_autor_da_emenda, ano_da_emenda DESC, total_empenhado DESC
         """,
         matched_authors,
@@ -524,8 +548,7 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
     df_display = pd.DataFrame({
         "Autor": df["nome_do_autor_da_emenda"],
         "Ano": df["ano_da_emenda"],
-        "Município": df["municipio"],
-        "UF": df["uf"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
         "Nº Emendas": df["num_emendas"].astype(int),
         "Empenhado (R$)": df["total_empenhado"].apply(_money),
         "Liquidado (R$)": df["total_liquidado"].apply(_money),
@@ -715,8 +738,7 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
         SELECT codigo_da_emenda,
                ano_da_emenda,
                tipo_de_emenda,
-               municipio,
-               uf,
+               localidade_de_aplicacao_do_recurso,
                nome_funcao,
                nome_subfuncao,
                nome_programa,
@@ -739,8 +761,7 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
         "Código": df["codigo_da_emenda"],
         "Ano": df["ano_da_emenda"],
         "Tipo": df["tipo_de_emenda"],
-        "Município": df["municipio"],
-        "UF": df["uf"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
         "Função": df["nome_funcao"],
         "Subfunção": df["nome_subfuncao"],
         "Programa": df["nome_programa"],
