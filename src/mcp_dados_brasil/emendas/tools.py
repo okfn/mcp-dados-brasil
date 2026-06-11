@@ -304,7 +304,7 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         "Total Recebido (R$)": df["total_recebido"].apply(_money),
     })
 
-    force = f"""
+    force = """
 Importante: favorecidos podem ser intermediários e podem não corresponder ao destino final da emenda.
     """
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
@@ -703,7 +703,7 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
 
     force = """
 **Importante**: o município do favorecido nem sempre coincide com a localidade do gasto; podem existir exceções.
-Por exemplo: a [XCMG BRASIL INDUSTRIA LTDA](https://portaldatransparencia.gov.br/emendas/consulta-por-documento?favorecido=28239093)
+Exemplo: a [XCMG BRASIL INDUSTRIA LTDA](https://portaldatransparencia.gov.br/emendas/consulta-por-documento?favorecido=28239093)
 é favorecido de emendas que foram executadas em diferentes localidades.
     """
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
