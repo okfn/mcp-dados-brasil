@@ -304,9 +304,12 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         "Total Recebido (R$)": df["total_recebido"].apply(_money),
     })
 
+    force = f"""
+Importante: favorecidos podem ser intermediários e podem não corresponder ao destino final da emenda.
+    """
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Top {len(df)} favorecidos por valor recebido em emendas:"
-    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER, "", force]
 
     chart = build_bar_chart(
         f"Top {len(df)} Favorecidos por Valor Recebido",
@@ -314,7 +317,7 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         [{"label": "Total Recebido (R$)", "data": df["total_recebido"].round(2).tolist()}],
         index_axis="y",
     )
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart], force=force)
 
 
 def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOutput:
@@ -698,14 +701,14 @@ def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
         "Total Recebido (R$)": df["total_recebido"].apply(_money),
     })
 
-    force = f"""
+    force = """
 **Importante**: o município do favorecido nem sempre coincide com a localidade do gasto; podem existir exceções.
 Por exemplo: a [XCMG BRASIL INDUSTRIA LTDA](https://portaldatransparencia.gov.br/emendas/consulta-por-documento?favorecido=28239093)
 é favorecido de emendas que foram executadas em diferentes localidades.
     """
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Favorecidos encontrados para '{nome_favorecido}' ({len(df)} resultados):"
-    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER, "", force]
 
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, force=force)
 
