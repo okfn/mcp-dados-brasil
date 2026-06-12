@@ -23,6 +23,9 @@ def register_tools(mcp):
             "Quais funções de governo recebem mais recursos de emendas?",
             "Quais subfunções concentram mais valor empenhado em emendas?",
             "Quem destina emendas parlamentares para Salvador?",
+            "Quais representantes mais destinaram emendas parlamentares?",
+            "Quem deu mais emendas em 2024?",
+            "Top 20 autores de emendas parlamentares",
             "Quais emendas o parlamentar ABILIO SANTANA destinou?",
             "Quais favorecidos receberam emendas de LULA DA FONTE?",
             "Quanto é que a favorecido 100 Sports LTDA recebeu com as emendas?",
@@ -318,6 +321,29 @@ def register_tools(mcp):
             - buscar_favorecido(nome_favorecido="FUNDO MUNICIPAL DE SAUDE")
         """
         return emendas.buscar_favorecido(nome_favorecido, limit)
+
+    @mcp.tool()
+    def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataToolOutput:
+        """Returns the top authors (nome_do_autor_da_emenda) of parliamentary amendments,
+        ranked by total valor_empenhado descending.
+
+        This answers questions like "which representative allocated the most in amendments?"
+        or "who are the top emenda authors?".
+
+        Args:
+            limit: Maximum number of authors to return, e.g. 10.
+            ano: Optional year to filter by, e.g. 2024. If None, aggregates across all years.
+
+        Returns:
+            A ranking of top parliamentary amendment authors, showing the author name,
+            number of emendas, total valor_empenhado, valor_liquidado and valor_pago.
+            Includes a table and a horizontal bar chart.
+
+        Examples:
+            - top_autores_das_emendas(limit=10)
+            - top_autores_das_emendas(limit=20, ano=2024)
+        """
+        return emendas.top_autores_das_emendas(limit, ano)
 
     @mcp.tool()
     def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
