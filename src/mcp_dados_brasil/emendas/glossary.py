@@ -176,7 +176,8 @@ GLOSSARY = {
     "valor_pago": {
         "name": "Valor Pago",
         "definition": (
-            "Valor resultante da fase de pagamento, último estágio da execução da despesa. É o valor efetivamente entregue ao credor. "
+            "Valor resultante da fase de pagamento, último estágio da execução da despesa. "
+            "É o valor efetivamente entregue ao credor. "
             "Esse pagamento normalmente é efetuado por meio de crédito em conta bancária do favorecido."
         ),
     },
@@ -293,9 +294,9 @@ GLOSSARY = {
     "pagamento": {
         "name": "Pagamento",
         "definition": (
-            "O último estágio da despesa pública. Consiste na entrega de numerário ao credor. Nessa fase, a autoridade competente "
-            "determina que a despesa que foi liquidada seja paga. Esse pagamento normalmente é efetuado por meio de crédito em "
-            "conta bancária do favorecido."
+            "O último estágio da despesa pública. Consiste na entrega de numerário ao credor. "
+            "Nessa fase, a autoridade competente determina que a despesa que foi liquidada seja paga. "
+            "Esse pagamento normalmente é efetuado por meio de crédito em conta bancária do favorecido."
             ),
     },
 }
