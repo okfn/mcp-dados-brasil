@@ -792,5 +792,73 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
 
 
+def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataToolOutput:
+    """Returns the top authors (nome_do_autor_da_emenda) of parliamentary amendments,
+    ranked by total valor_empenhado descending.
+
+    This answers questions like "which representative allocated the most in amendments?"
+    or "who are the top emenda authors?".
+
+    Args:
+        limit: Maximum number of authors to return. Defaults to 10.
+        ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+
+    Returns:
+        A ranking of top parliamentary amendment authors, showing the author name,
+        number of emendas, total valor_empenhado, valor_liquidado and valor_pago.
+        Includes a table and a horizontal bar chart.
+    """
+    ano_filter = ""
+    params: list = []
+    if ano is not None:
+        ano_filter = "WHERE ano_da_emenda = ?"
+        params.append(ano)
+
+    params.append(limit)
+
+    df = query_df(
+        f"""
+        SELECT nome_do_autor_da_emenda,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas {ano_filter}
+        GROUP BY nome_do_autor_da_emenda
+        ORDER BY total_empenhado DESC
+        LIMIT ?
+        """,
+        params,
+    )
+    if df.empty:
+        msg = "Nenhum autor encontrado na base de dados."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    df_display = pd.DataFrame({
+        "#": range(1, len(df) + 1),
+        "Autor": df["nome_do_autor_da_emenda"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    ano_label = f" (ano {ano})" if ano else ""
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Top {len(df)} autores de emendas parlamentares{ano_label}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    chart = build_bar_chart(
+        f"Top {len(df)} Autores de Emendas{ano_label}",
+        df["nome_do_autor_da_emenda"].tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": df["total_pago"].round(2).tolist()},
+        ],
+        index_axis="y",
+    )
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
 if __name__ == "__main__":
-    print(detalhe_emendas_por_autor("ABILIO SANTANA"))
+    print(top_autores_das_emendas(20, 2024))
