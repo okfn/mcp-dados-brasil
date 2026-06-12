@@ -816,7 +816,6 @@ def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataTool
 
     params.append(limit)
 
-    import ipdb; ipdb.set_trace();
     df = query_df(
         f"""
         SELECT nome_do_autor_da_emenda,
