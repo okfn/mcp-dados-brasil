@@ -157,13 +157,29 @@ GLOSSARY = {
     },
     "valor_empenhado": {
         "name": "Valor Empenhado",
-        "definition": "Valor empenhado para a emenda.",
+        "definition": (
+            "Valor resultante da fase de empenho, que é o primeiro estágio da despesa. Consiste na reserva de dotação "
+            "orçamentária, ou seja, reserva de valores monetários autorizados para atender um fim específico. O empenho "
+            "é registrado no momento da contratação do serviço, aquisição do material ou bem, obra ou amortização da dívida"
+            ),
     },
     "valor_liquidado": {
         "name": "Valor Liquidado",
-        "definition": "Valor liquidado para a emenda.",
+        "definition": (
+            "Valor resultante da fase de liquidação, segundo estágio da execução da despesa. Consiste na verificação do "
+            "direito adquirido pelo credor, tendo por base os títulos e documentos comprobatórios do respectivo crédito. "
+            "É nesse segundo estágio da execução da despesa que será cobrada a prestação dos serviços ou a entrega dos bens, "
+            "ou ainda, a realização da obra. Envolve, portanto, todos os atos de verificação e conferência, desde a entrega "
+            "do material ou a prestação do serviço até o reconhecimento da despesa"
+        ),
     },
-    "valor_pago": {"name": "Valor Pago", "definition": "Valor pago para a emenda."},
+    "valor_pago": {
+        "name": "Valor Pago",
+        "definition": (
+            "Valor resultante da fase de pagamento, último estágio da execução da despesa. É o valor efetivamente entregue ao credor. "
+            "Esse pagamento normalmente é efetuado por meio de crédito em conta bancária do favorecido."
+        ),
+    },
     "valor_restos_a_pagar_inscritos": {
         "name": "Valor Restos A Pagar Inscritos",
         "definition": "Valor inscrito em restos a pagar para a emenda.",
@@ -218,7 +234,11 @@ GLOSSARY = {
     },
     "favorecido": {
         "name": "Favorecido",
-        "definition": "Nome do favorecido do pagamento realizado.",
+        "definition": (
+            "Nome do favorecido do pagamento realizado."
+            "Serão chamados de Favorecidos os Órgãos ou Empresas Privadas e Pessoas Físicas que receberam "
+            "recursos públicos federais."
+            ),
     },
     "natureza_juridica": {
         "name": "Natureza Jurídica",
@@ -239,6 +259,44 @@ GLOSSARY = {
     "valor_recebido": {
         "name": "Valor Recebido",
         "definition": "Valor recebido pelo favorecido.",
+    },
+    "emendas": {
+        "name": "Emendas",
+        "definition": (
+            "As emendas feitas ao Orçamento Geral da União, denominado de Lei Orçamentária Anual (LOA) – "
+            "enviada pelo Executivo ao Congresso anualmente –, são propostas por meio das quais os parlamentares "
+            "podem opinar ou influir na alocação de recursos públicos em função de compromissos políticos que "
+            "assumiram durante seu mandato, tanto junto aos estados e municípios quanto a instituições. Tais emendas "
+            "podem acrescentar, suprimir ou modificar determinados itens (rubricas) do projeto de lei orçamentária "
+            "enviado pelo Executivo. Fonte: https://www12.senado.leg.br/noticias/glossario-legislativo/emendas-ao-orcamento"
+            ),
+    },
+    "empenho": {
+        "name": "Empenho",
+        "definition": (
+            "Primeiro estágio da despesa. No primeiro estágio, é criada a obrigação de pagamento da despesa pelo governo ao "
+            "credor. Consiste na reserva de dotação orçamentária, ou seja, reserva de valores monetários autorizados para "
+            "atender um fim específico. O empenho é registrado no momento da contratação do serviço, aquisição do material ou "
+            "bem, obra ou amortização da dívida."
+            ),
+    },
+    "liquidacao": {
+        "name": "Liquidação",
+        "definition": (
+            "Segundo estágio da execução da despesa pública. Esse estágio consiste na verificação do direito adquirido "
+            "pelo credor, tendo por base os títulos e documentos comprobatórios do respectivo crédito. É nesse segundo "
+            "estágio da execução da despesa que será cobrada a prestação dos serviços ou a entrega dos bens, ou ainda, a "
+            "realização da obra. Envolve, portanto, todos os atos de verificação e conferência, desde a entrega do material "
+            "ou a prestação do serviço até o reconhecimento da despesa."
+            ),
+    },
+    "pagamento": {
+        "name": "Pagamento",
+        "definition": (
+            "O último estágio da despesa pública. Consiste na entrega de numerário ao credor. Nessa fase, a autoridade competente "
+            "determina que a despesa que foi liquidada seja paga. Esse pagamento normalmente é efetuado por meio de crédito em "
+            "conta bancária do favorecido."
+            ),
     },
 }
 
