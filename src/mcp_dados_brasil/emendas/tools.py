@@ -299,25 +299,47 @@ def emendas_por_localidade(localidade: str, ano: int | None = None, historico: b
                        charts=charts, force=_nudge(ano, min_ano, max_ano, historico))
 
 
-def quem_envia_emendas(localidade: str) -> DataToolOutput:
+def quem_envia_emendas(localidade: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns a list of emenda authors (nome_do_autor_da_emenda) with the total
     valor_empenhado, valor_liquidado and valor_pago for the given localidade,
     sorted by total empenhado descending.
 
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    location; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) for the all-time ranking, or
+    ano=YYYY for a specific year.
+
     Args:
         localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                     Supports partial matching at the start of the name.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the location.
+        historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A ranking of parliamentary amendment authors for the given location,
         showing how many emendas each authored and the total empenhado/liquidado/pago.
-        Includes a table and a horizontal bar chart.
+        Includes a table and a horizontal bar chart, plus a verbatim note about the year shown.
         If no results are found, returns a force message.
     """
     matched_localidades, err = validate_localidade(localidade)
     if err:
         return err
     placeholders = ",".join("?" for _ in matched_localidades)
+
+    min_ano, max_ano = _ano_bounds()
+    where = f"localidade_de_aplicacao_do_recurso IN ({placeholders})"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_localidades)
+
+    params = list(matched_localidades)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
 
     df = query_df(
         f"""
@@ -327,12 +349,16 @@ def quem_envia_emendas(localidade: str) -> DataToolOutput:
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
+        WHERE {where}{ano_filter}
         GROUP BY nome_do_autor_da_emenda
         ORDER BY total_empenhado DESC
         """,
-        matched_localidades,
+        params,
     )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhum autor encontrado para {', '.join(matched_localidades)}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     localidades_str = ", ".join(matched_localidades)
 
@@ -357,34 +383,58 @@ def quem_envia_emendas(localidade: str) -> DataToolOutput:
         ],
         index_axis="y",
     )
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
-def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
+def top_favorecidos_das_emendas(limit: int = 10, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns which recipients (favorecidos) received the most money from
     parliamentary amendments, ranked by total valor_recebido.
 
+    By default (ano=None, historico=False) returns only the freshest year available; the
+    response ends with a verbatim note saying which year is shown and how to request history.
+    Pass historico=True (as a follow-up) for the all-time ranking, or ano=YYYY for a specific
+    year.
+
     Args:
         limit: Maximum number of recipients to return (default 10).
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data.
+        historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A ranking of top recipients of parliamentary amendment funds,
         showing the total valor_recebido and number of emendas per favorecido.
-        Includes a table and a horizontal bar chart.
+        Includes a table and a horizontal bar chart, plus a verbatim note about the year shown.
     """
+    min_ano, max_ano = _ano_bounds()
+    year_col = "CAST(ano_mes/100 AS INT)"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, "1=1", (), table="emendas_por_favorecido", year_col=year_col)
+
+    params: list = []
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = f" WHERE {year_col} = ?"
+        params.append(int(ano))
+    params.append(limit)
+
     df = query_df(
-        """
+        f"""
         SELECT favorecido,
                natureza_juridica,
                tipo_favorecido,
                COUNT(*) as num_emendas,
                SUM(valor_recebido) as total_recebido
-        FROM emendas_por_favorecido
+        FROM emendas_por_favorecido{ano_filter}
         GROUP BY favorecido
         ORDER BY total_recebido DESC
         LIMIT ?
         """,
-        (limit,),
+        params,
     )
     if df.empty:
         msg = "Nenhum favorecido encontrado na base de dados."
@@ -399,36 +449,51 @@ def top_favorecidos_das_emendas(limit: int = 10) -> DataToolOutput:
         "Total Recebido (R$)": df["total_recebido"].apply(_money),
     })
 
-    force = """
-Importante: favorecidos podem ser intermediários e podem não corresponder ao destino final da emenda.
-    """
+    caveat = (
+        "Importante: favorecidos podem ser intermediários e podem não corresponder "
+        "ao destino final da emenda."
+    )
+    nudge = _nudge(ano, min_ano, max_ano, historico)
+    ano_label = f" ({ano})" if (ano is not None and not historico) else ""
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
-    header = f"Top {len(df)} favorecidos por valor recebido em emendas:"
-    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER, "", force]
+    header = f"Top {len(df)} favorecidos por valor recebido em emendas{ano_label}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER, "", caveat]
 
     chart = build_bar_chart(
-        f"Top {len(df)} Favorecidos por Valor Recebido",
+        f"Top {len(df)} Favorecidos por Valor Recebido{ano_label}",
         df["favorecido"].tolist(),
         [{"label": "Total Recebido (R$)", "data": df["total_recebido"].round(2).tolist()}],
         index_axis="y",
     )
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart], force=force)
+    force_out = caveat + ("\n" + nudge if nudge else "")
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart], force=force_out)
 
 
-def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOutput:
+def emendas_por_localidade_e_funcao(localidade: str, funcao: str,
+                                    ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns the amounts of emendas for a given location filtered by a specific
     funcao (government function), grouped by subfuncao and year.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    location+function; the response ends with a verbatim note saying which year is shown and
+    how to request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
 
     Args:
         localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                     Supports partial matching at the start of the name.
         funcao: Government function name to filter by, e.g. "Saúde", "Educação",
                 "Assistência Social". Case-insensitive match.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the location+function.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A breakdown of parliamentary amendments (emendas parlamentares) for the given
         location and function, grouped by subfunction and year. Shows
         valor_empenhado, valor_liquidado and valor_pago totals.
+        Includes a verbatim note about the year shown.
         If the location or function is not found, returns a force message with
         suggestions.
     """
@@ -466,6 +531,19 @@ def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOut
         )
         return text_result(msg, source_url=SOURCE_URL, force=msg)
 
+    min_ano, max_ano = _ano_bounds()
+    where = f"localidade_de_aplicacao_do_recurso IN ({placeholders}) AND nome_funcao = ?"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, (*matched_localidades, matched_funcao))
+
+    params = list(matched_localidades) + [matched_funcao]
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
     # Fetch subfunction breakdown
     df = query_df(
         f"""
@@ -478,12 +556,16 @@ def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOut
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders}) AND nome_funcao = ?
+        WHERE {where}{ano_filter}
         GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda, nome_subfuncao
         ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda, nome_subfuncao
         """,
-        (*matched_localidades, matched_funcao),
+        params,
     )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhuma emenda encontrada para {localidades_str} - {matched_funcao}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     df_display = pd.DataFrame({
         "Ano": df["ano_da_emenda"],
@@ -513,7 +595,8 @@ def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOut
         ],
     )
 
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
 def list_funcao() -> DataToolOutput:
@@ -708,26 +791,52 @@ def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = Fals
                        charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
-def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+def favorecidos_por_autor(autor: str, limit: int = 20,
+                          ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns the top recipients (favorecidos) of parliamentary amendments from the given
     author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    author; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) for the all-time ranking, or
+    ano=YYYY for a specific year.
 
     Args:
         autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
                Case-insensitive, matched with LIKE for partial/fuzzy matching.
         limit: Maximum number of recipients to return. Defaults to 20.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the author.
+        historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A ranking of top recipients of parliamentary amendment funds from the given author,
         showing the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
         number of emendas and total valor_recebido. Includes a table and a horizontal bar
-        chart.
+        chart, plus a verbatim note about the year shown.
         If no author is found, returns a force message with suggestions.
     """
     matched_authors, err = find_author(autor, table="emendas_por_favorecido")
     if err:
         return err
     placeholders = ",".join("?" for _ in matched_authors)
+
+    min_ano, max_ano = _ano_bounds()
+    year_col = "CAST(ano_mes/100 AS INT)"
+    where = f"nome_do_autor_da_emenda IN ({placeholders})"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_authors,
+                           table="emendas_por_favorecido", year_col=year_col)
+
+    params = list(matched_authors)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = f" AND {year_col} = ?"
+        params.append(int(ano))
+    params.append(limit)
 
     df = query_df(
         f"""
@@ -739,13 +848,17 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
                COUNT(*) as num_emendas,
                SUM(valor_recebido) as total_recebido
         FROM emendas_por_favorecido
-        WHERE nome_do_autor_da_emenda IN ({placeholders})
+        WHERE {where}{ano_filter}
         GROUP BY favorecido
         ORDER BY total_recebido DESC
         LIMIT ?
         """,
-        (*matched_authors, limit),
+        params,
     )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhum favorecido encontrado para {', '.join(matched_authors)}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     authors_str = ", ".join(matched_authors)
 
@@ -770,7 +883,8 @@ def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
         [{"label": "Total Recebido (R$)", "data": df["total_recebido"].round(2).tolist()}],
         index_axis="y",
     )
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
 def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
@@ -837,7 +951,8 @@ Exemplo: a [XCMG BRASIL INDUSTRIA LTDA](https://portaldatransparencia.gov.br/eme
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, force=force)
 
 
-def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
+def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30,
+                              historico: bool = False) -> DataToolOutput:
     """Returns the individual emenda records for a given author (nome_do_autor_da_emenda),
     showing full detail per emenda including funcao, subfuncao, programa, acao,
     municipio, and all valor columns.
@@ -845,29 +960,44 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
     Unlike emendas_por_autor which aggregates by year/municipio, this tool shows
     each individual emenda with its complete detail.
 
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    author; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) to see records across all years, or
+    ano=YYYY for a specific year.
+
     Args:
         autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
                Case-insensitive, matched with LIKE for partial/fuzzy matching.
-        ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the author.
         limit: Maximum number of emenda records to return. Defaults to 30.
+        historico: If True, return records from ALL years (ordered by most recent). Overrides
+             `ano`. Use as a follow-up when the user asks for the history.
 
     Returns:
         A detailed list of individual parliamentary amendments for the given author,
         with columns: Codigo, Ano, Tipo, Municipio, UF, Funcao, Subfuncao, Programa,
         Acao, Empenhado (R$), Liquidado (R$), Pago (R$).
+        Includes a verbatim note about the year shown.
         If no author is found, returns a force message with suggestions.
     """
     matched_authors, err = find_author(autor)
     if err:
         return err
     placeholders = ",".join("?" for _ in matched_authors)
-    params = list(matched_authors)
 
+    min_ano, max_ano = _ano_bounds()
+    where = f"nome_do_autor_da_emenda IN ({placeholders})"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_authors)
+
+    params = list(matched_authors)
     ano_filter = ""
     if ano is not None:
         ano_filter = " AND ano_da_emenda = ?"
-        params.append(ano)
-
+        params.append(int(ano))
     params.append(limit)
 
     df = query_df(
@@ -884,15 +1014,19 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
                valor_liquidado,
                valor_pago
         FROM emendas
-        WHERE nome_do_autor_da_emenda IN ({placeholders}){ano_filter}
+        WHERE {where}{ano_filter}
         ORDER BY ano_da_emenda DESC, valor_empenhado DESC
         LIMIT ?
         """,
         params,
     )
+    if df.empty:
+        ano_label_msg = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhuma emenda encontrada para {', '.join(matched_authors)}{ano_label_msg}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     authors_str = ", ".join(matched_authors)
-    ano_label = f" (ano {ano})" if ano else ""
+    ano_label = f" (ano {ano})" if (ano is not None and not historico) else ""
 
     df_display = pd.DataFrame({
         "Código": df["codigo_da_emenda"],
@@ -913,30 +1047,46 @@ def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 3
     header = f"Detalhe das emendas de {authors_str}{ano_label} ({len(df)} registros):"
     lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
 
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows)
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       force=_nudge(ano, min_ano, max_ano, historico))
 
 
-def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataToolOutput:
+def top_autores_das_emendas(limit: int = 10, ano: int | None = None,
+                            historico: bool = False) -> DataToolOutput:
     """Returns the top authors (nome_do_autor_da_emenda) of parliamentary amendments,
     ranked by total valor_empenhado descending.
 
     This answers questions like "which representative allocated the most in amendments?"
     or "who are the top emenda authors?".
 
+    By default (ano=None, historico=False) returns only the freshest year available; the
+    response ends with a verbatim note saying which year is shown and how to request history.
+    Pass historico=True (as a follow-up) for the all-time ranking, or ano=YYYY for a specific
+    year.
+
     Args:
         limit: Maximum number of authors to return. Defaults to 10.
-        ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data.
+        historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A ranking of top parliamentary amendment authors, showing the author name,
         number of emendas, total valor_empenhado, valor_liquidado and valor_pago.
-        Includes a table and a horizontal bar chart.
+        Includes a table and a horizontal bar chart, plus a verbatim note about the year shown.
     """
+    min_ano, max_ano = _ano_bounds()
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, "1=1", ())
+
     ano_filter = ""
     params: list = []
     if ano is not None:
         ano_filter = "WHERE ano_da_emenda = ?"
-        params.append(ano)
+        params.append(int(ano))
 
     params.append(limit)
 
@@ -967,7 +1117,7 @@ def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataTool
         "Pago (R$)": df["total_pago"].apply(_money),
     })
 
-    ano_label = f" (ano {ano})" if ano else ""
+    ano_label = f" (ano {ano})" if (ano is not None and not historico) else ""
     table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
     header = f"Top {len(df)} autores de emendas parlamentares{ano_label}:"
     lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
@@ -981,7 +1131,8 @@ def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataTool
         ],
         index_axis="y",
     )
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
 if __name__ == "__main__":

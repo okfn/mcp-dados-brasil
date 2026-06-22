@@ -14,9 +14,11 @@ def register_tools(mcp):
         ),
         sample_questions=[
             "Quais são as emendas parlamentares para Pilar?",
+            "Emendas parlamentares para Pilar no ano corrente",
+            "Histórico de emendas parlamentares para São Paulo",
             "Quem são os parlamentares que mais enviam emendas para São Paulo?",
             "Top 10 favorecidos das emendas parlamentares",
-            "Top 20 favorecidos das emendas parlamentares",
+            "Top 20 favorecidos das emendas parlamentares no ano corrente",
             "Emendas para Saúde em São Paulo",
             "Quanto Belo Horizonte recebeu em emendas de Educação?",
             "Emendas para Assistência Social em Manaus",
@@ -25,9 +27,11 @@ def register_tools(mcp):
             "Quem destina emendas parlamentares para Salvador?",
             "Quais representantes mais destinaram emendas parlamentares?",
             "Quem deu mais emendas em 2024?",
-            "Top 20 autores de emendas parlamentares",
+            "Top 20 autores de emendas parlamentares no ano corrente",
             "Quais emendas o parlamentar ABILIO SANTANA destinou?",
+            "Emendas de ABILIO SANTANA no ano corrente",
             "Quais favorecidos receberam emendas de LULA DA FONTE?",
+            "Histórico de favorecidos das emendas de LULA DA FONTE",
             "Quanto é que a favorecido 100 Sports LTDA recebeu com as emendas?",
             "Para que serviu o dinheiro enviado pelo deputado ABILIO SANTANA?",
         ],
@@ -161,72 +165,101 @@ def register_tools(mcp):
         return emendas.emendas_por_localidade(localidade, ano=ano, historico=historico)
 
     @mcp.tool()
-    def quem_envia_emendas(localidade: str) -> DataToolOutput:
+    def quem_envia_emendas(localidade: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Returns a ranking of parliamentary amendment authors (nome_do_autor_da_emenda)
         for a given location (localidade_de_aplicacao_do_recurso), sorted by total
         valor_empenhado descending.
 
+        By default returns only the freshest year available for the location. The response
+        ends with a verbatim note telling the user which year is shown and how to ask for
+        history. Pass historico=True (as a follow-up) for the all-time ranking, or ano=YYYY
+        for a specific year.
+
         Args:
             localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                         Supports partial matching at the start of the name.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the location.
+            historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A ranking of amendment authors for the given location, showing how many
             emendas each authored and the total empenhado/liquidado/pago. Includes a table
-            and a horizontal bar chart.
+            and a horizontal bar chart, plus a verbatim note about the year shown.
             If no results are found, returns a force message.
 
         Examples:
             - quem_envia_emendas(localidade="Pilar")
-            - quem_envia_emendas(localidade="São Paulo")
+            - quem_envia_emendas(localidade="São Paulo", ano=2024)
+            - quem_envia_emendas(localidade="São Paulo", historico=True)
         """
-        return emendas.quem_envia_emendas(localidade)
+        return emendas.quem_envia_emendas(localidade, ano=ano, historico=historico)
 
     @mcp.tool()
-    def top_favorecidos_das_emendas(limit: int) -> DataToolOutput:
+    def top_favorecidos_das_emendas(limit: int, ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Returns which recipients (favorecidos) received the most money from parliamentary
         amendments, ranked by total valor_recebido.
 
+        By default returns only the freshest year available. The response ends with a verbatim
+        note telling the user which year is shown and how to ask for history. Pass
+        historico=True (as a follow-up) for the all-time ranking, or ano=YYYY for a specific year.
+
         Args:
             limit: Maximum number of recipients to return, e.g. 10.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data.
+            historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A ranking of top recipients of parliamentary amendment funds, showing the
             total valor_recebido, natureza_juridica, tipo_favorecido and number of emendas
-            per favorecido. Includes a table and a horizontal bar chart.
+            per favorecido. Includes a table and a horizontal bar chart, plus a verbatim note
+            about the year shown.
 
         Examples:
             - top_favorecidos_das_emendas(limit=10)
-            - top_favorecidos_das_emendas(limit=20)
+            - top_favorecidos_das_emendas(limit=20, historico=True)
         """
-        return emendas.top_favorecidos_das_emendas(limit)
+        return emendas.top_favorecidos_das_emendas(limit, ano=ano, historico=historico)
 
     @mcp.tool()
-    def emendas_por_localidade_e_funcao(localidade: str, funcao: str) -> DataToolOutput:
+    def emendas_por_localidade_e_funcao(localidade: str, funcao: str,
+                                        ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Returns the amounts of parliamentary amendments for a given location
         (localidade_de_aplicacao_do_recurso) filtered by a specific funcao (government
         function), grouped by subfuncao and year.
 
         Use list_funcao() to discover available funcao values.
 
+        By default returns only the freshest year available for the location+function. The
+        response ends with a verbatim note telling the user which year is shown and how to ask
+        for history. Pass historico=True (as a follow-up) for the full yearly view, or
+        ano=YYYY for a specific year.
+
         Args:
             localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                         Supports partial matching at the start of the name.
             funcao: Government function name to filter by, e.g. "Saúde", "Educação",
                     "Assistência Social". Case-insensitive match.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the location+function.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A breakdown of parliamentary amendments for the given location and function,
             grouped by subfunction and year. Shows valor_empenhado, valor_liquidado and
-            valor_pago totals.
+            valor_pago totals, plus a verbatim note about the year shown.
             If the location or function is not found, returns a force message with
             suggestions of available funcoes.
 
         Examples:
             - emendas_por_localidade_e_funcao(localidade="Pilar", funcao="Saúde")
-            - emendas_por_localidade_e_funcao(localidade="São Paulo", funcao="Educação")
+            - emendas_por_localidade_e_funcao(localidade="São Paulo", funcao="Educação", historico=True)
         """
-        return emendas.emendas_por_localidade_e_funcao(localidade, funcao)
+        return emendas.emendas_por_localidade_e_funcao(localidade, funcao, ano=ano, historico=historico)
 
     @mcp.tool()
     def list_funcao() -> DataToolOutput:
@@ -294,29 +327,39 @@ def register_tools(mcp):
         return emendas.list_subfuncao()
 
     @mcp.tool()
-    def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
+    def favorecidos_por_autor(autor: str, limit: int = 20,
+                              ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Returns the top recipients (favorecidos) of parliamentary amendments from a given
         author (nome_do_autor_da_emenda), ranked by total valor_recebido descending.
 
         Uses case-insensitive partial matching for the author name.
 
+        By default returns only the freshest year available for the author. The response ends
+        with a verbatim note telling the user which year is shown and how to ask for history.
+        Pass historico=True (as a follow-up) for the all-time ranking, or ano=YYYY for a
+        specific year.
+
         Args:
             autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
                    Case-insensitive partial match supported.
             limit: Maximum number of recipients to return. Defaults to 20.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the author.
+            historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A ranking of top recipients of amendment funds from the given author, showing
             the favorecido name, natureza_juridica, tipo_favorecido, municipio, UF,
             number of emendas and total valor_recebido. Includes a table and a horizontal
-            bar chart.
+            bar chart, plus a verbatim note about the year shown.
             If no author is found, returns a force message with suggestions.
 
         Examples:
             - favorecidos_por_autor(autor="ABILIO SANTANA")
-            - favorecidos_por_autor(autor="LULA DA FONTE", limit=10)
+            - favorecidos_por_autor(autor="LULA DA FONTE", limit=10, historico=True)
         """
-        return emendas.favorecidos_por_autor(autor, limit)
+        return emendas.favorecidos_por_autor(autor, limit, ano=ano, historico=historico)
 
     @mcp.tool()
     def buscar_favorecido(nome_favorecido: str, limit: int = 10) -> DataToolOutput:
@@ -343,52 +386,73 @@ def register_tools(mcp):
         return emendas.buscar_favorecido(nome_favorecido, limit)
 
     @mcp.tool()
-    def top_autores_das_emendas(limit: int = 10, ano: int | None = None) -> DataToolOutput:
+    def top_autores_das_emendas(limit: int = 10, ano: int | None = None,
+                                historico: bool = False) -> DataToolOutput:
         """Returns the top authors (nome_do_autor_da_emenda) of parliamentary amendments,
         ranked by total valor_empenhado descending.
 
         This answers questions like "which representative allocated the most in amendments?"
         or "who are the top emenda authors?".
 
+        By default returns only the freshest year available. The response ends with a verbatim
+        note telling the user which year is shown and how to ask for history. Pass
+        historico=True (as a follow-up) for the all-time ranking, or ano=YYYY for a specific year.
+
         Args:
             limit: Maximum number of authors to return, e.g. 10.
-            ano: Optional year to filter by, e.g. 2024. If None, aggregates across all years.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data.
+            historico: If True, aggregate ALL years (all-time ranking). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A ranking of top parliamentary amendment authors, showing the author name,
             number of emendas, total valor_empenhado, valor_liquidado and valor_pago.
-            Includes a table and a horizontal bar chart.
+            Includes a table and a horizontal bar chart, plus a verbatim note about the year
+            shown.
 
         Examples:
             - top_autores_das_emendas(limit=10)
+            - top_autores_das_emendas(limit=20, historico=True)
             - top_autores_das_emendas(limit=20, ano=2024)
         """
-        return emendas.top_autores_das_emendas(limit, ano)
+        return emendas.top_autores_das_emendas(limit, ano, historico)
 
     @mcp.tool()
-    def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30) -> DataToolOutput:
+    def detalhe_emendas_por_autor(autor: str, ano: int | None = None, limit: int = 30,
+                                  historico: bool = False) -> DataToolOutput:
         """Returns individual emenda records for a given author with full detail (funcao,
         subfuncao, programa, acao, municipio, and all valor columns).
 
         Unlike emendas_por_autor which aggregates by year/municipio, this shows each
         individual emenda with its complete detail.
 
+        By default returns only the freshest year available for the author. The response ends
+        with a verbatim note telling the user which year is shown and how to ask for history.
+        Pass historico=True (as a follow-up) to see records across all years, or ano=YYYY for
+        a specific year.
+
         Args:
             autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
                    Case-insensitive partial match supported.
-            ano: Optional year to filter by, e.g. 2024. If None, returns all years.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the author.
             limit: Maximum number of emenda records to return. Defaults to 30.
+            historico: If True, return records from ALL years (ordered by most recent).
+                 Overrides `ano`. Use as a follow-up when the user asks for the history.
 
         Returns:
             A detailed list of individual parliamentary amendments for the given author,
-            with full detail columns. Returns a table of results.
+            with full detail columns, plus a verbatim note about the year shown.
+            Returns a table of results.
             If no author is found, returns a force message with suggestions.
 
         Examples:
             - detalhe_emendas_por_autor(autor="ABILIO SANTANA")
             - detalhe_emendas_por_autor(autor="LULA DA FONTE", ano=2025, limit=10)
+            - detalhe_emendas_por_autor(autor="LULA DA FONTE", historico=True)
         """
-        return emendas.detalhe_emendas_por_autor(autor, ano, limit)
+        return emendas.detalhe_emendas_por_autor(autor, ano, limit, historico)
 
     @mcp.tool()
     def glossary(concept: str) -> DataToolOutput:
