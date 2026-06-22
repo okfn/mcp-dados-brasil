@@ -128,27 +128,37 @@ def register_tools(mcp):
         )
 
     @mcp.tool()
-    def emendas_por_localidade(localidade: str) -> DataToolOutput:
+    def emendas_por_localidade(localidade: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Get parliamentary amendments (emendas parlamentares) for a given location
-        (localidade_de_aplicacao_do_recurso), grouped by year.
+        (localidade_de_aplicacao_do_recurso).
 
-        Shows valor_empenhado, valor_liquidado and valor_pago totals per year.
+        By default returns only the freshest year available for the location. The response
+        ends with a verbatim note telling the user which year is shown and how to ask for
+        history. Pass historico=True (as a follow-up) for the full yearly view, or ano=YYYY
+        for a specific year.
+
+        Shows valor_empenhado, valor_liquidado and valor_pago totals.
         If the location name matches multiple entries, returns results for all of them.
 
         Args:
             localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                         Supports partial matching at the start of the name.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the location.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
-            A summary of parliamentary amendments for the given location, grouped by
-            year, with a table and bar chart of empenhado/liquidado/pago per year.
+            A summary of parliamentary amendments for the given location, with a table and
+            bar chart of empenhado/liquidado/pago, plus a verbatim note about the year shown.
             If no results are found, returns a force message.
 
         Examples:
             - emendas_por_localidade(localidade="Pilar")
-            - emendas_por_localidade(localidade="São Paulo")
+            - emendas_por_localidade(localidade="São Paulo", ano=2024)
+            - emendas_por_localidade(localidade="São Paulo", historico=True)
         """
-        return emendas.emendas_por_localidade(localidade)
+        return emendas.emendas_por_localidade(localidade, ano=ano, historico=historico)
 
     @mcp.tool()
     def quem_envia_emendas(localidade: str) -> DataToolOutput:
@@ -236,9 +246,14 @@ def register_tools(mcp):
         return emendas.list_funcao()
 
     @mcp.tool()
-    def emendas_por_autor(autor: str) -> DataToolOutput:
+    def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
         """Returns parliamentary amendments (emendas parlamentares) authored by a given
         author (nome_do_autor_da_emenda), grouped by year and municipality.
+
+        By default returns only the freshest year available for the author. The response
+        ends with a verbatim note telling the user which year is shown and how to ask for
+        history. Pass historico=True (as a follow-up) for the full yearly view, or ano=YYYY
+        for a specific year.
 
         Shows valor_empenhado, valor_liquidado and valor_pago totals per year/municipio.
         Uses case-insensitive partial matching for the author name.
@@ -246,18 +261,23 @@ def register_tools(mcp):
         Args:
             autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA".
                    Case-insensitive partial match supported.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the author.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
 
         Returns:
             A summary of parliamentary amendments authored by the given author,
             grouped by year and municipality, with a table and bar chart of
-            empenhado/liquidado/pago per year.
+            empenhado/liquidado/pago, plus a verbatim note about the year shown.
             If no results are found, returns a force message with suggestions.
 
         Examples:
             - emendas_por_autor(autor="ABILIO SANTANA")
-            - emendas_por_autor(autor="ABEL MESQUITA")
+            - emendas_por_autor(autor="ABEL MESQUITA", ano=2022)
+            - emendas_por_autor(autor="ABEL MESQUITA", historico=True)
         """
-        return emendas.emendas_por_autor(autor)
+        return emendas.emendas_por_autor(autor, ano=ano, historico=historico)
 
     @mcp.tool()
     def list_subfuncao() -> DataToolOutput:

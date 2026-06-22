@@ -60,6 +60,73 @@ def _emendas_url(codigo_da_emenda: str) -> str:
         return ""
 
 
+# --- Year resolution helpers ------------------------------------------------
+# Every emendas tool leads with the freshest available year and offers the full history
+# as an explicit follow-up (see _nudge). No default dumps the whole 2014->today history
+# onto a casual question.
+
+def _ano_bounds() -> tuple[int, int]:
+    """Return the global (min, max) year present in the emendas table.
+
+    ``max`` is the operative "current year" (the freshest data we hold).
+    """
+    df = query_df("SELECT MIN(ano_da_emenda) AS lo, MAX(ano_da_emenda) AS hi FROM emendas")
+    return int(df.iloc[0]["lo"]), int(df.iloc[0]["hi"])
+
+
+def _resolve_ano(
+    ano: int | None,
+    where_sql: str,
+    params,
+    *,
+    table: str = "emendas",
+    year_col: str = "ano_da_emenda",
+) -> int | None:
+    """Resolve the operative year for a query.
+
+    A concrete ``ano`` is returned unchanged. When ``ano`` is None (the default), this
+    returns the *latest year that actually contains rows* for the given filter, so the UI
+    never shows an empty "current year". Returns None if the filter matches nothing.
+
+    ``table``/``year_col`` default to the ``emendas`` table; pass
+    ``table="emendas_por_favorecido", year_col="CAST(ano_mes/100 AS INT)"`` for the
+    favorecido table.
+    """
+    if ano is not None:
+        return ano
+    df = query_df(
+        f"SELECT MAX({year_col}) AS a FROM {table} WHERE {where_sql}",
+        params,
+    )
+    if df.empty or not df.iloc[0]["a"]:
+        return None
+    return int(df.iloc[0]["a"])
+
+
+def _nudge(ano: int | None, min_ano: int, max_ano: int, historico: bool) -> str:
+    """Build the verbatim follow-up hint appended to every emendas response.
+
+    Routed through the ``force`` channel so the LLM/UI renders it exactly as written.
+    ``max_ano`` doubles as the current year, so an ``ano`` below it is flagged as a
+    fallback (no fresh data for that filter).
+    """
+    if historico:
+        return (
+            f"📜 Visão histórica completa ({min_ano}–{max_ano}). "
+            f"Para focar em um ano, informe-o (ex.: 'em {max_ano}')."
+        )
+    if ano is None:
+        return ""
+    fallback = ""
+    if ano < max_ano:
+        fallback = f"ℹ️ Sem dados em {max_ano}; mostrando o ano mais recente disponível: {ano}. "
+    return (
+        f"{fallback}📌 Mostrando dados de {ano}. "
+        f"Histórico disponível: {min_ano}–{max_ano}. "
+        f"Para ver outros anos, informe um ano (ex.: 'em {ano - 1}') ou peça 'mostre o histórico'."
+    )
+
+
 def find_author(autor: str, table: str = "emendas") -> tuple[list[str] | None, DataToolOutput | None]:
     """Find matching authors via case-insensitive LIKE search.
 
@@ -136,18 +203,27 @@ def validate_localidade(localidade: str) -> tuple[list[str] | None, DataToolOutp
     return None, text_result(msg, source_url=SOURCE_URL, force=msg)
 
 
-def emendas_por_localidade(localidade: str) -> DataToolOutput:
+def emendas_por_localidade(localidade: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
-    localidade_de_aplicacao_do_recurso, grouped by year, from the emendas table.
+    localidade_de_aplicacao_do_recurso, from the emendas table.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    location; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
 
     Args:
         localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
                     Supports partial matching at the start of the name.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the location.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A summary of parliamentary amendments (emendas parlamentares) for the given
-        location, grouped by year. Shows valor_empenhado, valor_liquidado and
-        valor_pago totals per year.
+        location. Shows valor_empenhado, valor_liquidado and valor_pago totals.
+        Includes a verbatim note indicating the year shown and how to request history.
         If the location name matches multiple entries, returns results for all of them.
         If no results are found, returns a force message.
     """
@@ -156,7 +232,21 @@ def emendas_por_localidade(localidade: str) -> DataToolOutput:
         return err
     placeholders = ",".join("?" for _ in matched_localidades)
 
-    # Fetch yearly aggregates across all matching localidades
+    min_ano, max_ano = _ano_bounds()
+    where = f"localidade_de_aplicacao_do_recurso IN ({placeholders})"
+
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_localidades)
+
+    params = list(matched_localidades)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
+    # Fetch aggregates across all matching localidades (lead year, unless historico)
     df = query_df(
         f"""
         SELECT ano_da_emenda,
@@ -166,12 +256,16 @@ def emendas_por_localidade(localidade: str) -> DataToolOutput:
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
+        WHERE {where}{ano_filter}
         GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda
         ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda
         """,
-        matched_localidades,
+        params,
     )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhuma emenda encontrada para {', '.join(matched_localidades)}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     localidades_str = ", ".join(matched_localidades)
 
@@ -201,7 +295,8 @@ def emendas_por_localidade(localidade: str) -> DataToolOutput:
             ],
         ))
 
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=charts)
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=charts, force=_nudge(ano, min_ano, max_ano, historico))
 
 
 def quem_envia_emendas(localidade: str) -> DataToolOutput:
@@ -513,18 +608,28 @@ def list_subfuncao() -> DataToolOutput:
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
 
 
-def emendas_por_autor(autor: str) -> DataToolOutput:
+def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns emendas parlamentares authored by the given author (nome_do_autor_da_emenda),
     grouped by year and municipio, sorted by year descending and total empenhado descending.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    author; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
 
     Args:
         autor: Author name to filter by, e.g. "ABILIO SANTANA" or "ABEL MESQUITA JR.".
                Case-insensitive, matched with LIKE for partial/fuzzy matching.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the author.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
 
     Returns:
         A summary of parliamentary amendments authored by the given author,
         grouped by year and municipality. Shows valor_empenhado, valor_liquidado and
         valor_pago totals per year/municipio.
+        Includes a verbatim note indicating the year shown and how to request history.
         If the author name matches multiple authors, returns results for all of them.
         If no results are found, returns a force message with suggestions.
     """
@@ -533,7 +638,21 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         return err
     placeholders = ",".join("?" for _ in matched_authors)
 
-    # Fetch yearly aggregates per localidade
+    min_ano, max_ano = _ano_bounds()
+    where = f"nome_do_autor_da_emenda IN ({placeholders})"
+
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_authors)
+
+    params = list(matched_authors)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
+    # Fetch aggregates per localidade (lead year, unless historico)
     df = query_df(
         f"""
         SELECT nome_do_autor_da_emenda,
@@ -544,12 +663,16 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
                SUM(valor_liquidado) as total_liquidado,
                SUM(valor_pago) as total_pago
         FROM emendas
-        WHERE nome_do_autor_da_emenda IN ({placeholders})
+        WHERE {where}{ano_filter}
         GROUP BY nome_do_autor_da_emenda, ano_da_emenda, localidade_de_aplicacao_do_recurso
         ORDER BY nome_do_autor_da_emenda, ano_da_emenda DESC, total_empenhado DESC
         """,
-        matched_authors,
+        params,
     )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhuma emenda encontrada para {', '.join(matched_authors)}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
 
     authors_str = ", ".join(matched_authors)
 
@@ -581,7 +704,8 @@ def emendas_por_autor(autor: str) -> DataToolOutput:
         ],
     )
 
-    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
 def favorecidos_por_autor(autor: str, limit: int = 20) -> DataToolOutput:
