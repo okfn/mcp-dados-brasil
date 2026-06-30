@@ -10,7 +10,28 @@ def register_tools(mcp):
 
     mcp.set_plugin_info(
         description=(
-            "Ferramentas sobre dados abertos do Brasil (https://)dados.gov.br)"
+            "Ferramentas sobre dados abertos do Brasil (https://dados.gov.br)"
+        ),
+        instructions=(
+            "Você é um assistente especializado EXCLUSIVAMENTE em emendas "
+            "parlamentares do Brasil. Fonte única: o Portal da Transparência "
+            "da Controladoria-Geral da União "
+            "(https://portaldatransparencia.gov.br), com os dados de emendas "
+            "parlamentares (autor da emenda, localidade de aplicação do "
+            "recurso, função e subfunção de governo, favorecidos e os valores "
+            "empenhado, liquidado e pago).\n"
+            "- Responda SOMENTE sobre emendas parlamentares do Brasil e "
+            "SOMENTE com os dados destas tools. Nada de outros países, outros "
+            "temas, nem conhecimento próprio.\n"
+            "- Não confunda os valores: valor_empenhado != valor_liquidado != "
+            "valor_pago. Use a tool e a coluna que correspondem ao que foi "
+            "perguntado; consulte glossary para a definição exata de cada "
+            "termo.\n"
+            "- Para perguntas políticas ou sobre decisões de governo que não "
+            "se respondem com dados, chame political_questions.\n"
+            "- Se a pergunta não for sobre emendas parlamentares do Brasil, "
+            "ou se nenhuma tool a cobrir, chame nenhuma_ferramenta_disponivel "
+            "com o motivo; não improvise com uma tool que não se aplica."
         ),
         sample_questions=[
             "Quais são as emendas parlamentares para Pilar?",
@@ -36,6 +57,43 @@ def register_tools(mcp):
             "Para que serviu o dinheiro enviado pelo deputado ABILIO SANTANA?",
         ],
     )
+
+    @mcp.tool()
+    def nenhuma_ferramenta_disponivel(motivo: str | None = None) -> DataToolOutput:
+        """Chame **apenas** quando nenhuma outra tool puder responder à
+            pergunta: temas que não são emendas parlamentares do Brasil
+            (outros países, clima, esportes, etc.), ou perguntas fora do
+            alcance dos dados de emendas. **Nunca** use se houver uma tool de
+            dados que possa contribuir, ainda que parcialmente - prefira
+            sempre a tool específica. Para perguntas políticas ou sobre
+            decisões de governo que não se respondem com dados use
+            political_questions, não esta tool.
+            Define o alcance DESTA instância: somente emendas parlamentares do
+            Brasil (Portal da Transparência / CGU). Emite uma mensagem padrão
+            dizendo ao usuário que o sistema não cobre esse tema.
+
+        Args:
+            motivo: Breve explicação (1 frase) de por que nenhuma tool se
+                aplica. Ex: "pergunta sobre o Uruguai, não o Brasil", "não é
+                um tema de emendas parlamentares". É incluído na mensagem para
+                que o usuário entenda o alcance.
+
+        Examples:
+            - nenhuma_ferramenta_disponivel(motivo="pergunta sobre clima, não emendas")
+            - nenhuma_ferramenta_disponivel(motivo="dados do Uruguai, esta instância é BR")
+        """
+        msg = (
+            "Esta instância responde unicamente sobre emendas parlamentares "
+            "do Brasil, com dados do Portal da Transparência da "
+            "Controladoria-Geral da União (https://portaldatransparencia.gov.br)."
+        )
+        if motivo:
+            msg += f" Motivo: {motivo}."
+        msg += " Para outros temas ou países, consulte outra fonte."
+        return CallToolResult(
+            content=[TextContent(type="text", text=msg)],
+            structuredContent={"sources": []},
+        )
 
     # @mcp.tool()
     def bolsa_familia_list(
