@@ -21,9 +21,12 @@ GLOSSARY = {
         "name": "Ano da Emenda",
         "definition": "Ano em que emenda foi proposta.",
     },
-    "tipo_da_emenda": {
-        "name": "Tipo da Emenda",
-        "definition": "Descreve o tipo de emenda parlamentar.",
+    "tipo_de_emenda": {
+        "name": "Tipo de Emenda",
+        "definition": (
+            "Descreve o tipo de emenda parlamentar."
+            "(ex: Emenda de Comissão, Emenda de Bancada, Emenda de Relator, Emenda Individual."
+             ),
     },
     "codigo_do_autor_da_emenda": {
         "name": "Código do Autor da Emenda",

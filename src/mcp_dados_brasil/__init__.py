@@ -320,6 +320,43 @@ def register_tools(mcp):
         return emendas.emendas_por_localidade_e_funcao(localidade, funcao, ano=ano, historico=historico)
 
     @mcp.tool()
+    def emendas_por_localidade_e_tipo(localidade: str, tipo_de_emenda: str,
+                                      ano: int | None = None, historico: bool = False) -> DataToolOutput:
+        """Returns the amounts of parliamentary amendments for a given location
+            (localidade_de_aplicacao_do_recurso) filtered by a specific tipo_de_emenda
+            (amendment type), grouped by year and location.
+
+            Use list_tipo_de_emenda() to discover available tipo_de_emenda values.
+
+            By default returns only the freshest year available for the location+type. The
+            response ends with a verbatim note telling the user which year is shown and how to ask
+            for history. Pass historico=True (as a follow-up) for the full yearly view, or
+            ano=YYYY for a specific year.
+
+        Args:
+            localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                        Supports partial matching at the start of the name.
+            tipo_de_emenda: Amendment type to filter by, e.g. "Emenda Individual - Transferências
+                            com Finalidade Definida" or "Emenda de Bancada". Case-insensitive match.
+            ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+                 actually has data for the location+type.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
+
+        Returns:
+            A breakdown of parliamentary amendments for the given location and amendment type,
+            grouped by year. Shows valor_empenhado, valor_liquidado and valor_pago totals,
+            plus a verbatim note about the year shown.
+            If the location or amendment type is not found, returns a force message with
+            suggestions of available tipos.
+
+        Examples:
+            - emendas_por_localidade_e_tipo(localidade="Pilar", tipo_de_emenda="Emenda de Bancada")
+            - emendas_por_localidade_e_tipo(localidade="São Paulo", tipo_de_emenda="Emenda de Relator", historico=True)
+        """
+        return emendas.emendas_por_localidade_e_tipo(localidade, tipo_de_emenda, ano=ano, historico=historico)
+
+    @mcp.tool()
     def list_funcao() -> DataToolOutput:
         """List all available funcao (government functions) in the emendas dataset.
 
@@ -335,6 +372,23 @@ def register_tools(mcp):
             - list_funcao()
         """
         return emendas.list_funcao()
+
+    @mcp.tool()
+    def list_tipo_de_emenda() -> DataToolOutput:
+        """List all available tipo_de_emenda (amendment types) in the emendas dataset.
+
+        Use this to discover which tipo_de_emenda values can be passed to
+        emendas_por_localidade_e_tipo().
+
+        Returns:
+            A table of all distinct tipo_de_emenda values in the parliamentary amendments
+            dataset, with the number of emendas and total valor_empenhado, valor_liquidado and
+            valor_pago per tipo_de_emenda. Includes a horizontal bar chart.
+
+        Examples:
+            - list_tipo_de_emenda()
+        """
+        return emendas.list_tipo_de_emenda()
 
     @mcp.tool()
     def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
