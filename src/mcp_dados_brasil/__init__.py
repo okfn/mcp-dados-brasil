@@ -1,8 +1,8 @@
 from mcp.types import CallToolResult, TextContent
 from mcp_server import DataToolOutput
 
-from mcp_dados_brasil.emendas import tools as emendas
 from mcp_dados_brasil.emendas import glossary as emendas_glossary
+from mcp_dados_brasil.emendas import tools as emendas
 
 
 def register_tools(mcp):
