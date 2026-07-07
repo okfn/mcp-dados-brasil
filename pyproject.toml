@@ -16,7 +16,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "flake8>=6.0.0",  # Code linting
+    "ruff>=0.15.0",
+    "pydantic>=2.13,<3.0",
 ]
 
 [project.scripts]

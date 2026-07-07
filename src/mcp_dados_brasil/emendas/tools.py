@@ -1135,5 +1135,183 @@ def top_autores_das_emendas(limit: int = 10, ano: int | None = None,
                        charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
+def list_tipo_de_emenda() -> DataToolOutput:
+    """Return a table listing all available tipo_de_emenda (amendment types) in the
+    emendas dataset.
+
+    Use this to discover which tipo_de_emenda values can be passed to
+    emendas_por_localidade_e_tipo().
+
+    Returns:
+        A table of all distinct tipo_de_emenda values available in the parliamentary
+        amendments (emendas parlamentares) dataset, with the number of emendas and total
+        valor_empenhado, valor_liquidado and valor_pago per tipo_de_emenda.
+        Includes a horizontal bar chart.
+    """
+    df = query_df(
+        """
+        SELECT tipo_de_emenda,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        GROUP BY tipo_de_emenda
+        ORDER BY total_empenhado DESC
+        """
+    )
+    if df.empty:
+        msg = "Nenhum tipo de emenda encontrado na base de dados."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    df_display = pd.DataFrame({
+        "Tipo de Emenda": df["tipo_de_emenda"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Tipos de emenda parlamentares disponíveis ({len(df)} tipos):"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    chart = build_bar_chart(
+        "Tipos de Emendas Parlamentares por Valor Empenhado",
+        df["tipo_de_emenda"].tolist(),
+        [{"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()}],
+        index_axis="y",
+    )
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def emendas_por_localidade_e_tipo(localidade: str, tipo_de_emenda: str,
+                                  ano: int | None = None, historico: bool = False) -> DataToolOutput:
+    """Returns the amounts of emendas for a given location
+    (localidade_de_aplicacao_do_recurso) filtered by a specific tipo_de_emenda
+    (amendment type), grouped by year and location.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    location+type; the response ends with a verbatim note saying which year is shown and how
+    to request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
+
+    Args:
+        localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                    Supports partial matching at the start of the name.
+        tipo_de_emenda: Amendment type to filter by, e.g. "Emenda Individual - Transferências
+                        com Finalidade Definida" or "Emenda de Bancada". Case-insensitive match.
+        ano: Year to filter by, e.g. 2024. If None (default), shows the latest year that
+             actually has data for the location+type.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
+
+    Returns:
+        A breakdown of parliamentary amendments (emendas parlamentares) for the given
+        location and amendment type, grouped by year. Shows valor_empenhado, valor_liquidado
+        and valor_pago totals.
+        Includes a verbatim note about the year shown.
+        If the location or amendment type is not found, returns a force message with
+        suggestions.
+    """
+    matched_localidades, err = validate_localidade(localidade)
+    if err:
+        return err
+    tipo_upper = tipo_de_emenda.strip().upper()
+    placeholders = ",".join("?" for _ in matched_localidades)
+
+    # Check available tipos for these localidades
+    tipo_df = query_df(
+        f"""
+        SELECT DISTINCT tipo_de_emenda
+        FROM emendas
+        WHERE localidade_de_aplicacao_do_recurso IN ({placeholders})
+        ORDER BY tipo_de_emenda
+        """,
+        matched_localidades,
+    )
+
+    available_tipos = tipo_df["tipo_de_emenda"].tolist()
+    matched_tipo = None
+    for t in available_tipos:
+        if t.upper() == tipo_upper:
+            matched_tipo = t
+            break
+
+    localidades_str = ", ".join(matched_localidades)
+
+    if matched_tipo is None:
+        tipos_list = ", ".join(available_tipos)
+        msg = (
+            f"Tipo de emenda '{tipo_de_emenda}' não encontrado para a localidade "
+            f"'{localidades_str}'. Tipos disponíveis: {tipos_list}"
+        )
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    min_ano, max_ano = _ano_bounds()
+    where = f"localidade_de_aplicacao_do_recurso IN ({placeholders}) AND tipo_de_emenda = ?"
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, (*matched_localidades, matched_tipo))
+
+    params = list(matched_localidades) + [matched_tipo]
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
+    df = query_df(
+        f"""
+        SELECT ano_da_emenda,
+               localidade_de_aplicacao_do_recurso,
+               tipo_de_emenda,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE {where}{ano_filter}
+        GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda
+        ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda
+        """,
+        params,
+    )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = f"Nenhuma emenda encontrada para {localidades_str} - {matched_tipo}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    df_display = pd.DataFrame({
+        "Ano": df["ano_da_emenda"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Emendas parlamentares para {localidades_str} - Tipo: {matched_tipo}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    # Aggregate by year for chart (across all matched localidades)
+    yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
+    yearly = yearly.sort_index()
+
+    chart = build_bar_chart(
+        f"Emendas - {localidades_str} - {matched_tipo}",
+        yearly.index.astype(str).tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
+            {"label": "Liquidado (R$)", "data": yearly["total_liquidado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": yearly["total_pago"].round(2).tolist()},
+        ],
+    )
+
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
+
+
 if __name__ == "__main__":
     print(top_autores_das_emendas(20, 2024))
