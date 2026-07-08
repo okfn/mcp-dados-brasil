@@ -203,6 +203,57 @@ def validate_localidade(localidade: str) -> tuple[list[str] | None, DataToolOutp
     return None, text_result(msg, source_url=SOURCE_URL, force=msg)
 
 
+def validate_acao(acao: str) -> tuple[list[str] | None, str | None, DataToolOutput | None]:
+    """Resolve an ação orçamentária by codigo_acao or nome_acao.
+
+    Tries an exact (case-insensitive) match on codigo_acao first (e.g. "0EC2"),
+    then on nome_acao (e.g. "TRANSFERENCIAS ESPECIAIS"). Supports a partial
+    nome_acao search when nothing exact matches.
+
+    Returns:
+        (matched_codigo_acoes, matched_nome_acao, None) on success, or
+        (None, None, error_result) on failure.
+    """
+    acao_stripped = acao.strip()
+    acao_upper = acao_stripped.upper()
+
+    # Exact codigo_acao match (case-insensitive) - the common case (e.g. "0EC2").
+    df = query_df(
+        "SELECT DISTINCT codigo_acao, nome_acao FROM emendas "
+        "WHERE UPPER(codigo_acao) = ? ORDER BY codigo_acao",
+        (acao_upper,),
+    )
+    if not df.empty:
+        return df["codigo_acao"].tolist(), df["nome_acao"].iloc[0], None
+
+    # Exact nome_acao match (case-insensitive).
+    df = query_df(
+        "SELECT DISTINCT codigo_acao, nome_acao FROM emendas "
+        "WHERE UPPER(nome_acao) = ? ORDER BY codigo_acao",
+        (acao_upper,),
+    )
+    if not df.empty:
+        return df["codigo_acao"].tolist(), df["nome_acao"].iloc[0], None
+
+    # Partial nome_acao match (contains).
+    df = query_df(
+        "SELECT DISTINCT codigo_acao, nome_acao FROM emendas "
+        "WHERE UPPER(nome_acao) LIKE ? ORDER BY nome_acao LIMIT 10",
+        (f"%{acao_upper}%",),
+    )
+    if not df.empty:
+        suggestions = ", ".join(
+            f"{c} ({n})" for c, n in zip(df["codigo_acao"], df["nome_acao"])
+        )
+        msg = (
+            f"Nenhuma ação orçamentária encontrada para '{acao}'. "
+            f"Ações sugeridas: {suggestions}"
+        )
+    else:
+        msg = f"Nenhuma ação orçamentária encontrada para '{acao}'."
+    return None, None, text_result(msg, source_url=SOURCE_URL, force=msg)
+
+
 def emendas_por_localidade(localidade: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
     localidade_de_aplicacao_do_recurso, from the emendas table.
@@ -689,6 +740,162 @@ def list_subfuncao() -> DataToolOutput:
         index_axis="y",
     )
     return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def list_acao() -> DataToolOutput:
+    """Return a table listing all available acao (ações orçamentárias) in the
+    emendas dataset.
+
+    Use this to discover which codigo_acao values (e.g. "0EC2", "2E89") and
+    nome_acao values can be passed to emendas_por_acao().
+
+    Returns:
+        A table of all distinct acao (ação orçamentária) values available in the
+        parliamentary amendments (emendas parlamentares) dataset, with the
+        number of emendas and total valor_empenhado, valor_liquidado and
+        valor_pago per acao.
+        Includes a horizontal bar chart.
+    """
+    df = query_df(
+        """
+        SELECT codigo_acao,
+               nome_acao,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        GROUP BY codigo_acao, nome_acao
+        ORDER BY total_empenhado DESC
+        """
+    )
+    if df.empty:
+        msg = "Nenhuma ação orçamentária encontrada na base de dados."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    df_display = pd.DataFrame({
+        "Código": df["codigo_acao"],
+        "Ação": df["nome_acao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Ações orçamentárias disponíveis nas emendas parlamentares ({len(df)} ações):"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    chart = build_bar_chart(
+        "Ações Orçamentárias das Emendas Parlamentares por Valor Empenhado",
+        df["codigo_acao"].tolist(),
+        [{"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()}],
+        index_axis="y",
+    )
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows, charts=[chart])
+
+
+def emendas_por_acao(acao: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
+    """Get the valor_empenhado, valor_liquidado and valor_pago of emendas for the given
+    ação orçamentária (codigo_acao / nome_acao), from the emendas table.
+
+    Use list_acao() to discover available codigo_acao and nome_acao values.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    ação; the response ends with a verbatim note saying which year is shown and how to
+    request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
+
+    Args:
+        acao: Ação orçamentária to filter by. Accepts either the codigo_acao
+              (e.g. "0EC2") or the nome_acao (e.g. "TRANSFERENCIAS ESPECIAIS").
+              Case-insensitive; partial name matching supported.
+        ano: Year to filter by, e.g. 2025. If None (default), shows the latest year that
+             actually has data for the ação.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
+
+    Returns:
+        A summary of parliamentary amendments (emendas parlamentares) for the given
+        ação orçamentária. Shows valor_empenhado, valor_liquidado and valor_pago totals.
+        Includes a verbatim note indicating the year shown and how to request history.
+        If the ação is not found, returns a force message with suggestions.
+    """
+    matched_acoes, matched_nome, err = validate_acao(acao)
+    if err:
+        return err
+    placeholders = ",".join("?" for _ in matched_acoes)
+
+    min_ano, max_ano = _ano_bounds()
+    where = f"codigo_acao IN ({placeholders})"
+
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, matched_acoes)
+
+    params = list(matched_acoes)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
+    # Fetch aggregates across the matched ação (lead year, unless historico)
+    df = query_df(
+        f"""
+        SELECT ano_da_emenda,
+               codigo_acao,
+               nome_acao,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE {where}{ano_filter}
+        GROUP BY ano_da_emenda, codigo_acao, nome_acao
+        ORDER BY ano_da_emenda
+        """,
+        params,
+    )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        msg = (
+            f"Nenhuma emenda encontrada para a ação orçamentária "
+            f"{matched_acoes[0]} ({matched_nome}){ano_label}."
+        )
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    if len(matched_acoes) == 1:
+        acao_label = f"{matched_acoes[0]} - {matched_nome}"
+    else:
+        acao_label = ", ".join(matched_acoes)
+
+    df_display = pd.DataFrame({
+        "Ano": df["ano_da_emenda"],
+        "Código": df["codigo_acao"],
+        "Ação": df["nome_acao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Emendas parlamentares para a ação orçamentária {acao_label}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    chart = build_bar_chart(
+        f"Emendas Parlamentares - Ação {acao_label}",
+        df["ano_da_emenda"].astype(str).tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": df["total_empenhado"].round(2).tolist()},
+            {"label": "Liquidado (R$)", "data": df["total_liquidado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": df["total_pago"].round(2).tolist()},
+        ],
+    )
+
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
 def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
