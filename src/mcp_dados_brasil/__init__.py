@@ -44,6 +44,9 @@ def register_tools(mcp):
             "Emendas para Assistência Social em Manaus",
             "Quais funções de governo recebem mais recursos de emendas?",
             "Quais subfunções concentram mais valor empenhado em emendas?",
+            "Qual foi o total empenhado na ação orçamentária 0EC2 em 2025?",
+            "Histórico da ação orçamentária 2E89",
+            "Emendas da ação orçamentária 0EC2 para São Paulo",
             "Quem destina emendas parlamentares para Salvador?",
             "Quais representantes mais destinaram emendas parlamentares?",
             "Quem deu mais emendas em 2024?",
@@ -372,6 +375,103 @@ def register_tools(mcp):
             - list_subfuncao()
         """
         return emendas.list_subfuncao()
+
+    @mcp.tool()
+    def list_acao() -> DataToolOutput:
+        """List all available acao (ações orçamentárias) in the emendas dataset.
+
+        Use this to discover which codigo_acao (e.g. "0EC2") and nome_acao values can
+        be passed to emendas_por_acao().
+
+        Returns:
+            A table of all distinct acao values in the parliamentary amendments dataset,
+            with the codigo_acao, nome_acao, number of emendas and total
+            valor_empenhado, valor_liquidado and valor_pago per acao. Includes a
+            horizontal bar chart.
+
+        Examples:
+            - list_acao()
+        """
+        return emendas.list_acao()
+
+    @mcp.tool()
+    def emendas_por_acao(acao: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
+        """Returns the amounts of parliamentary amendments (emendas parlamentares) for a
+        given ação orçamentária (codigo_acao / nome_acao), grouped by year.
+
+        Use list_acao() to discover available codigo_acao and nome_acao values.
+
+        By default returns only the freshest year available for the ação. The response ends
+        with a verbatim note telling the user which year is shown and how to ask for history.
+        Pass historico=True (as a follow-up) for the full yearly view, or ano=YYYY for a
+        specific year.
+
+        Shows valor_empenhado, valor_liquidado and valor_pago totals.
+        Accepts either the codigo_acao (e.g. "0EC2") or the nome_acao
+        (e.g. "TRANSFERENCIAS ESPECIAIS"), case-insensitive, with partial name matching.
+
+        Args:
+            acao: Ação orçamentária to filter by. Accepts either the codigo_acao
+                  (e.g. "0EC2") or the nome_acao (e.g. "TRANSFERENCIAS ESPECIAIS").
+                  Case-insensitive; partial name matching supported.
+            ano: Year to filter by, e.g. 2025. If None (default), shows the latest year that
+                 actually has data for the ação.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
+
+        Returns:
+            A summary of parliamentary amendments for the given ação orçamentária, with a
+            table and bar chart of empenhado/liquidado/pago, plus a verbatim note about the
+            year shown. If the ação is not found, returns a force message with suggestions.
+
+        Examples:
+            - emendas_por_acao(acao="0EC2")
+            - emendas_por_acao(acao="0EC2", ano=2025)
+            - emendas_por_acao(acao="TRANSFERENCIAS ESPECIAIS", historico=True)
+        """
+        return emendas.emendas_por_acao(acao, ano=ano, historico=historico)
+
+    @mcp.tool()
+    def emendas_por_localidade_e_acao(localidade: str, acao: str,
+                                      ano: int | None = None, historico: bool = False) -> DataToolOutput:
+        """Returns the amounts of parliamentary amendments for a given location
+        (localidade_de_aplicacao_do_recurso) filtered by a specific ação orçamentária
+        (codigo_acao / nome_acao), grouped by year.
+
+        Use list_acao() to discover available codigo_acao and nome_acao values.
+
+        By default returns only the freshest year available for the location+ação. The
+        response ends with a verbatim note telling the user which year is shown and how to
+        ask for history. Pass historico=True (as a follow-up) for the full yearly view, or
+        ano=YYYY for a specific year.
+
+        Shows valor_empenhado, valor_liquidado and valor_pago totals.
+        Accepts either the codigo_acao (e.g. "0EC2") or the nome_acao
+        (e.g. "TRANSFERENCIAS ESPECIAIS"), case-insensitive, with partial name matching.
+
+        Args:
+            localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                        Supports partial matching at the start of the name.
+            acao: Ação orçamentária to filter by. Accepts either the codigo_acao
+                  (e.g. "0EC2") or the nome_acao (e.g. "TRANSFERENCIAS ESPECIAIS").
+                  Case-insensitive; partial name matching supported.
+            ano: Year to filter by, e.g. 2025. If None (default), shows the latest year that
+                 actually has data for the location+ação.
+            historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+                 follow-up when the user asks for the history.
+
+        Returns:
+            A breakdown of parliamentary amendments for the given location and ação
+            orçamentária, grouped by year. Shows valor_empenhado, valor_liquidado and
+            valor_pago totals, plus a verbatim note about the year shown.
+            If the location or ação is not found, returns a force message with suggestions.
+
+        Examples:
+            - emendas_por_localidade_e_acao(localidade="São Paulo", acao="0EC2")
+            - emendas_por_localidade_e_acao(localidade="Pilar", acao="0EC2", ano=2024)
+            - emendas_por_localidade_e_acao(localidade="Pilar", acao="TRANSFERENCIAS ESPECIAIS", historico=True)
+        """
+        return emendas.emendas_por_localidade_e_acao(localidade, acao, ano=ano, historico=historico)
 
     @mcp.tool()
     def favorecidos_por_autor(autor: str, limit: int = 20,
