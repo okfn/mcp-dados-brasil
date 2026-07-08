@@ -898,6 +898,128 @@ def emendas_por_acao(acao: str, ano: int | None = None, historico: bool = False)
                        charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
 
 
+def emendas_por_localidade_e_acao(localidade: str, acao: str,
+                                  ano: int | None = None, historico: bool = False) -> DataToolOutput:
+    """Returns the amounts of parliamentary amendments for a given location
+    (localidade_de_aplicacao_do_recurso) filtered by a specific ação orçamentária
+    (codigo_acao / nome_acao), grouped by year and location.
+
+    Use list_acao() to discover available codigo_acao and nome_acao values.
+
+    By default (ano=None, historico=False) returns only the freshest year available for the
+    location+ação; the response ends with a verbatim note saying which year is shown and how
+    to request history. Pass historico=True (as a follow-up) for the full yearly view, or
+    ano=YYYY for a specific year.
+
+    Args:
+        localidade: Location name to filter by, e.g. "Pilar", "São Paulo", or "PILAR - PB".
+                    Supports partial matching at the start of the name.
+        acao: Ação orçamentária to filter by. Accepts either the codigo_acao
+              (e.g. "0EC2") or the nome_acao (e.g. "TRANSFERENCIAS ESPECIAIS").
+              Case-insensitive; partial name matching supported.
+        ano: Year to filter by, e.g. 2025. If None (default), shows the latest year that
+             actually has data for the location+ação.
+        historico: If True, return ALL years (full history). Overrides `ano`. Use as a
+             follow-up when the user asks for the history.
+
+    Returns:
+        A breakdown of parliamentary amendments (emendas parlamentares) for the given
+        location and ação orçamentária, grouped by year. Shows valor_empenhado,
+        valor_liquidado and valor_pago totals.
+        Includes a verbatim note about the year shown.
+        If the location or ação is not found, returns a force message with suggestions.
+    """
+    matched_localidades, err = validate_localidade(localidade)
+    if err:
+        return err
+    matched_acoes, matched_nome, err = validate_acao(acao)
+    if err:
+        return err
+
+    placeholders_loc = ",".join("?" for _ in matched_localidades)
+    placeholders_acao = ",".join("?" for _ in matched_acoes)
+    localidades_str = ", ".join(matched_localidades)
+    where = (
+        f"localidade_de_aplicacao_do_recurso IN ({placeholders_loc}) "
+        f"AND codigo_acao IN ({placeholders_acao})"
+    )
+
+    min_ano, max_ano = _ano_bounds()
+    if historico:
+        ano = None
+    else:
+        ano = _resolve_ano(ano, where, (*matched_localidades, *matched_acoes))
+
+    params = list(matched_localidades) + list(matched_acoes)
+    ano_filter = ""
+    if ano is not None:
+        ano_filter = " AND ano_da_emenda = ?"
+        params.append(int(ano))
+
+    df = query_df(
+        f"""
+        SELECT ano_da_emenda,
+               localidade_de_aplicacao_do_recurso,
+               codigo_acao,
+               nome_acao,
+               COUNT(*) as num_emendas,
+               SUM(valor_empenhado) as total_empenhado,
+               SUM(valor_liquidado) as total_liquidado,
+               SUM(valor_pago) as total_pago
+        FROM emendas
+        WHERE {where}{ano_filter}
+        GROUP BY localidade_de_aplicacao_do_recurso, ano_da_emenda, codigo_acao, nome_acao
+        ORDER BY localidade_de_aplicacao_do_recurso, ano_da_emenda
+        """,
+        params,
+    )
+    if df.empty:
+        ano_label = f" em {ano}" if (ano is not None and not historico) else ""
+        if len(matched_acoes) == 1:
+            acao_label = f"{matched_acoes[0]} ({matched_nome})"
+        else:
+            acao_label = ", ".join(matched_acoes)
+        msg = f"Nenhuma emenda encontrada para {localidades_str} - {acao_label}{ano_label}."
+        return text_result(msg, source_url=SOURCE_URL, force=msg)
+
+    if len(matched_acoes) == 1:
+        acao_label = f"{matched_acoes[0]} - {matched_nome}"
+    else:
+        acao_label = ", ".join(matched_acoes)
+
+    df_display = pd.DataFrame({
+        "Ano": df["ano_da_emenda"],
+        "Localidade": df["localidade_de_aplicacao_do_recurso"],
+        "Código": df["codigo_acao"],
+        "Ação": df["nome_acao"],
+        "Nº Emendas": df["num_emendas"].astype(int),
+        "Empenhado (R$)": df["total_empenhado"].apply(_money),
+        "Liquidado (R$)": df["total_liquidado"].apply(_money),
+        "Pago (R$)": df["total_pago"].apply(_money),
+    })
+
+    table_rows = [df_display.columns.tolist()] + df_display.values.tolist()
+    header = f"Emendas parlamentares para {localidades_str} - Ação: {acao_label}:"
+    lines = [header, "", df_display.to_string(index=False), "", SOURCE_FOOTER]
+
+    # Aggregate by year for chart (across all matched localidades)
+    yearly = df.groupby("ano_da_emenda")[["total_empenhado", "total_liquidado", "total_pago"]].sum()
+    yearly = yearly.sort_index()
+
+    chart = build_bar_chart(
+        f"Emendas - {localidades_str} - {acao_label}",
+        yearly.index.astype(str).tolist(),
+        [
+            {"label": "Empenhado (R$)", "data": yearly["total_empenhado"].round(2).tolist()},
+            {"label": "Liquidado (R$)", "data": yearly["total_liquidado"].round(2).tolist()},
+            {"label": "Pago (R$)", "data": yearly["total_pago"].round(2).tolist()},
+        ],
+    )
+
+    return text_result("\n".join(lines), source_url=SOURCE_URL, table=table_rows,
+                       charts=[chart], force=_nudge(ano, min_ano, max_ano, historico))
+
+
 def emendas_por_autor(autor: str, ano: int | None = None, historico: bool = False) -> DataToolOutput:
     """Returns emendas parlamentares authored by the given author (nome_do_autor_da_emenda),
     grouped by year and municipio, sorted by year descending and total empenhado descending.
