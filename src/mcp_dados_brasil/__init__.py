@@ -8,6 +8,7 @@ from mcp_dados_brasil.emendas import tools as emendas
 def register_tools(mcp):
 
     mcp.set_plugin_info(
+        display_name="Explore Brazil Parliamentary Amendments",
         description=(
             "Ferramentas sobre dados abertos do Brasil (https://dados.gov.br)"
         ),
